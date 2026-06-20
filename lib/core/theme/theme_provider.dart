@@ -3,15 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 enum AppThemeStyle { classic, pastel, colorful }
 
-final themeProvider = StateNotifierProvider<ThemeNotifier, AppThemeStyle>((ref) {
-  return ThemeNotifier();
-});
-
-class ThemeNotifier extends StateNotifier<AppThemeStyle> {
-  ThemeNotifier() : super(AppThemeStyle.classic);
+class ThemeNotifier extends Notifier<AppThemeStyle> {
+  @override
+  AppThemeStyle build() => AppThemeStyle.classic;
 
   void changeTheme(AppThemeStyle style) => state = style;
 }
+
+final themeProvider = NotifierProvider<ThemeNotifier, AppThemeStyle>(() {
+  return ThemeNotifier();
+});
 
 class AppThemeManager {
   static ThemeData getTheme(AppThemeStyle style) {
@@ -31,7 +32,6 @@ class AppThemeManager {
           accent: const Color(0xFFF59E0B),
         );
       case AppThemeStyle.classic:
-      default:
         return _buildTheme(
           bg: const Color(0xFFF9F9FB),
           primary: const Color(0xFF0F172A),

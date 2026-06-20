@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../auth/presentation/providers/auth_provider.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -27,7 +27,7 @@ class ProfileScreen extends ConsumerWidget {
               user?.fullName ?? 'Bienvenue !', 
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)
             ),
-            subtitle: Text(user == null ? 'Connectez-vous pour gérer votre compte' : user.email),
+            subtitle: Text(user == null ? 'Connectez-vous pour gérer votre compte' : (user.email ?? '')),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               if (user == null) {
