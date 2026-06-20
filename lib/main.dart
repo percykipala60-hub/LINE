@@ -29,7 +29,7 @@ void main() async {
   // Lancement de l'application sous un ProviderScope pour Riverpod
   runApp(
     const ProviderScope(
-      child: LeenApp(),
+      child: LineApp(),
     ),
   );
 }

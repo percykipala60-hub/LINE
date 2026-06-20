@@ -65,7 +65,7 @@ class StripeService {
       await Stripe.instance.initPaymentSheet(
         paymentSheetParameters: SetupPaymentSheetParameters(
           paymentIntentClientSecret: paymentData['client_secret'],
-          merchantDisplayName: 'Leen Store',
+          merchantDisplayName: 'Line Store',
           customerId: paymentData['customer'],
           customerEphemeralKeySecret: paymentData['ephemeral_key'],
           style: ThemeMode.system,

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
-import '../../../../core/widgets/leen_logo.dart';
+import '../../../../core/widgets/line_logo.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -62,7 +62,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const LeenLogo(fontSize: 64),
+                const LineLogo(fontSize: 64),
                 const SizedBox(height: 4),
                 Text(
                   'Connectez-vous pour continuer',

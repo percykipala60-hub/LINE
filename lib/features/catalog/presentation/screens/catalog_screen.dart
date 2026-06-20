@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:leen/features/auth/presentation/providers/auth_provider.dart';
 import 'package:leen/features/catalog/domain/models/category.dart';
-import 'package:leen/core/widgets/leen_logo.dart';
+import 'package:leen/core/widgets/line_logo.dart';
 import '../providers/catalog_providers.dart';
 
 class CatalogScreen extends ConsumerStatefulWidget {
@@ -38,7 +38,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
               backgroundColor: theme.scaffoldBackgroundColor,
               elevation: 0,
               scrolledUnderElevation: 2,
-              title: const LeenLogo(fontSize: 36),
+              title: const LineLogo(fontSize: 36),
               actions: [
                 // Icône panier
                 IconButton(

@@ -10,15 +10,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:leen/app.dart';
 
 void main() {
-  testWidgets('Smoke test de l\'application Leen', (WidgetTester tester) async {
+  testWidgets('Smoke test de l\'application Line', (WidgetTester tester) async {
     // Build our app and trigger a frame under ProviderScope.
     await tester.pumpWidget(
       const ProviderScope(
-        child: LeenApp(),
+        child: LineApp(),
       ),
     );
 
-    // Vérifier que l'application s'affiche correctement (titre LEEN présent)
-    expect(find.text('LEEN'), findsOneWidget);
+    // Vérifier que l'application s'affiche correctement (titre LINE présent)
+    expect(find.text('LINE'), findsOneWidget);
   });
 }

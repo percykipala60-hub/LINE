@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-// Constantes de configuration Supabase pour le projet Leen
+// Constantes de configuration Supabase pour le projet Line
 // ⚠️ Ces valeurs sont publiques (anon key = clé publique, sans danger côté client)
 // Ne jamais mettre la 'service_role' key ici.
 class SupabaseConfig {
