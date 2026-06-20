@@ -144,48 +144,51 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
               ),
             ),
 
-            // 3. Sélecteur de catégories dynamique
+            // 3. Sélecteur de catégories dynamique (Style Shein avec icônes circulaires)
             categoriesAsync.when(
               data: (categories) {
                 final allCategories = [
-                  // Option virtuelle "Tous"
                   Category(id: 'Tous', name: 'Tous', slug: 'tous'),
                   ...categories,
                 ];
 
                 return SliverToBoxAdapter(
-                  child: Container(
-                    height: 48,
-                    margin: const EdgeInsets.symmetric(vertical: 8),
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      itemCount: allCategories.length,
-                      itemBuilder: (context, index) {
-                        final cat = allCategories[index];
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    child: Wrap(
+                      spacing: 16, // Espace horizontal
+                      runSpacing: 16, // Espace vertical
+                      alignment: WrapAlignment.start,
+                      children: allCategories.map((cat) {
                         final isSelected = _selectedCategoryId == cat.id;
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                          child: ChoiceChip(
-                            label: Text(cat.name),
-                            selected: isSelected,
-                            onSelected: (selected) {
-                              if (selected) {
-                                setState(() => _selectedCategoryId = cat.id);
-                              }
-                            },
-                            selectedColor: theme.colorScheme.primary,
-                            backgroundColor: theme.colorScheme.surface,
-                            labelStyle: TextStyle(
-                              color: isSelected ? Colors.white : theme.colorScheme.primary,
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
-                            ),
+                        return GestureDetector(
+                          onTap: () => setState(() => _selectedCategoryId = cat.id),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              CircleAvatar(
+                                radius: 32,
+                                backgroundColor: isSelected 
+                                    ? theme.colorScheme.primary.withAlpha(20) 
+                                    : Colors.grey[100],
+                                child: Icon(
+                                  Icons.category_outlined,
+                                  color: isSelected ? theme.colorScheme.primary : Colors.black87,
+                                  size: 28,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                cat.name,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                ),
+                              ),
+                            ],
                           ),
                         );
-                      },
+                      }).toList(),
                     ),
                   ),
                 );
@@ -195,8 +198,23 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
               ),
               error: (err, stack) => SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Text('Erreur catégories : $err', textAlign: TextAlign.center),
+                  padding: const EdgeInsets.symmetric(vertical: 24.0),
+                  child: Column(
+                    children: [
+                      Icon(Icons.category_outlined, size: 48, color: theme.colorScheme.primary.withAlpha(128)),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Vos catégories arrivent bientôt !',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodyLarge,
+                      ),
+                      TextButton.icon(
+                        onPressed: () => ref.invalidate(categoriesProvider),
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Rafraîchir'),
+                      )
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -301,7 +319,26 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
               ),
               error: (err, stack) => SliverFillRemaining(
                 hasScrollBody: false,
-                child: Center(child: Text('Erreur produits : $err')),
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.shopping_bag_outlined, size: 64, color: theme.colorScheme.primary.withAlpha(128)),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Votre catalogue se refait une beauté,\nrevenez très vite !',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      TextButton.icon(
+                        onPressed: () => ref.invalidate(productsProvider(_selectedCategoryId)),
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Rafraîchir'),
+                      )
+                    ],
+                  ),
+                ),
               ),
             ),
           ],

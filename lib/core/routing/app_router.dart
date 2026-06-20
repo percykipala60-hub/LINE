@@ -8,72 +8,105 @@ import '../../features/cart/presentation/screens/cart_screen.dart';
 import '../../features/catalog/presentation/screens/catalog_screen.dart';
 import '../../features/catalog/presentation/screens/product_details_screen.dart';
 import '../../features/checkout/presentation/screens/checkout_screen.dart';
+import '../../features/main_layout/presentation/screens/main_layout_screen.dart';
+import '../../features/profile/presentation/screens/profile_screen.dart';
 
 final appRouterKey = GlobalKey<NavigatorState>();
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  // Écouter l'état d'authentification pour forcer la redirection si la session change
   final authState = ref.watch(authStateProvider);
 
   return GoRouter(
     navigatorKey: appRouterKey,
     initialLocation: '/',
     routes: [
-      // Écran d'accueil - Catalogue public
-      GoRoute(
-        path: '/',
-        builder: (context, state) => const CatalogScreen(),
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) {
+          return MainLayoutScreen(navigationShell: navigationShell);
+        },
+        branches: [
+          // Branche 1 : Boutique/Catalogue
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/',
+                builder: (context, state) => const CatalogScreen(),
+              ),
+            ],
+          ),
+          // Branche 2 : Catégories (Optionnel, on lie au catalogue pour l'instant)
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/categories',
+                builder: (context, state) => const CatalogScreen(),
+              ),
+            ],
+          ),
+          // Branche 3 : Panier
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/cart',
+                builder: (context, state) => const CartScreen(),
+              ),
+            ],
+          ),
+          // Branche 4 : Moi (Profil)
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/profile',
+                builder: (context, state) => const ProfileScreen(),
+              ),
+            ],
+          ),
+        ],
       ),
-      // Écran des détails du produit
+
+      // Détails du produit (hors de la bottom bar)
       GoRoute(
         path: '/catalog/:productId',
+        parentNavigatorKey: appRouterKey,
         builder: (context, state) {
           final productId = state.pathParameters['productId'] ?? '';
           return ProductDetailsScreen(productId: productId);
         },
       ),
-      // Écran du Panier
-      GoRoute(
-        path: '/cart',
-        builder: (context, state) => const CartScreen(),
-      ),
-      // Écran de Validation de Commande (sécurisé)
+
+      // Validation de Commande
       GoRoute(
         path: '/checkout',
+        parentNavigatorKey: appRouterKey,
         builder: (context, state) => const CheckoutScreen(),
       ),
-      // Authentification
+
+      // Auth
       GoRoute(
         path: '/login',
+        parentNavigatorKey: appRouterKey,
         builder: (context, state) => const LoginScreen(),
       ),
       GoRoute(
         path: '/register',
+        parentNavigatorKey: appRouterKey,
         builder: (context, state) => const RegisterScreen(),
       ),
     ],
-    
-    // Gardes de redirection pour sécuriser l'application
     redirect: (context, state) {
       final user = authState.value;
       final isLoading = authState.isLoading;
 
-      // Si l'état de l'auth est encore en cours de chargement initial, ne pas rediriger tout de suite
       if (isLoading) return null;
 
       final isLoggingIn = state.matchedLocation == '/login' || state.matchedLocation == '/register';
       final isAccessingCheckout = state.matchedLocation == '/checkout';
 
-      // 1. Redirection si non connecté sur des pages sécurisées
-      if (user == null) {
-        if (isAccessingCheckout) {
-          return '/login';
-        }
-        return null;
+      if (user == null && isAccessingCheckout) {
+        return '/login';
       }
 
-      // 2. Si l'utilisateur est connecté et tente d'accéder aux pages de login/register, retour à l'accueil
-      if (isLoggingIn) {
+      if (user != null && isLoggingIn) {
         return '/';
       }
 
