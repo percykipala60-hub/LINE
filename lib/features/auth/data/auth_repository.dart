@@ -61,6 +61,18 @@ class AuthRepository {
     await _supabase.auth.signOut();
   }
 
+  // Vérification du code OTP à 6 chiffres
+  Future<AuthResponse> verifyOTP({
+    required String email,
+    required String token,
+  }) async {
+    return await _supabase.auth.verifyOTP(
+      email: email,
+      token: token,
+      type: OtpType.signup,
+    );
+  }
+
   // Obtenir l'utilisateur actuel connecté
   User? get currentUser => _supabase.auth.currentUser;
 }

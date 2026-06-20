@@ -38,9 +38,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Compte créé avec succès ! Connectez-vous.')),
+          const SnackBar(content: Text('Code à 6 chiffres envoyé par e-mail !')),
         );
-        context.go('/login');
+        _showOtpDialog();
       }
     } catch (e) {
       if (mounted) {
@@ -51,6 +51,46 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _showOtpDialog() {
+    final otpController = TextEditingController();
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Entrez le code à 6 chiffres'),
+        content: TextField(
+          controller: otpController,
+          keyboardType: TextInputType.number,
+          maxLength: 6,
+          decoration: const InputDecoration(hintText: '123456'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              try {
+                await ref.read(authStateProvider.notifier).verifyOTP(
+                      _emailController.text.trim(),
+                      otpController.text.trim(),
+                    );
+                if (context.mounted) {
+                  Navigator.pop(context); // Fermer le dialog
+                  context.go('/'); // Aller à l'accueil
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Code invalide : $e')),
+                  );
+                }
+              }
+            },
+            child: const Text('Vérifier'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override

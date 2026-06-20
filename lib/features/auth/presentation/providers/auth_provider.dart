@@ -62,6 +62,17 @@ class AuthStateNotifier extends AsyncNotifier<AppUser?> {
     }
   }
 
+  // Vérification de l'OTP
+  Future<void> verifyOTP(String email, String token) async {
+    state = const AsyncValue.loading();
+    try {
+      await _authRepository.verifyOTP(email: email, token: token);
+    } catch (error, stackTrace) {
+      state = AsyncValue.error(error, stackTrace);
+      rethrow;
+    }
+  }
+
   // Action pour se déconnecter
   Future<void> signOut() async {
     state = const AsyncValue.loading();
