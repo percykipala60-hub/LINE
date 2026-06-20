@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
+import 'package:http/http.dart' as http;
 
 class StripeService {
   StripeService._();
@@ -12,37 +14,39 @@ class StripeService {
     Stripe.merchantIdentifier = 'merchant.com.leen.app';
   }
 
-  // Créer un Payment Intent en appelant une fonction serveur
-  // (ex: une Supabase Edge Function sécurisée)
+  // Créer un Payment Intent
+  // TODO: WARNING - DÉPLACER CECI CÔTÉ SERVEUR POUR LA PRODUCTION (Ex: Supabase Edge Function)
+  // Utiliser la clé secrète côté client expose votre compte Stripe. À utiliser UNIQUEMENT pour ce test.
   Future<Map<String, dynamic>?> createPaymentIntent(double amount, String currency) async {
     try {
-      // Simuler l'appel à votre backend. En production, remplacez cette URL par votre API/Supabase Edge Function.
-      // Le backend doit appeler : stripe.paymentIntents.create({ amount, currency, customer })
-      
-      // Ici, nous simulons la réponse attendue pour le client
+      final String secretKey = 'sk_test_51TkDtL00389LZDsb16ADe47fOvYuBBGRzDS87mXxMkRzOCrhy6r79kAtnxVyuRxGXQCxVGgZRQu1ZOFYECXPMv3X00lMefxsPT';
+
       final body = {
         'amount': (amount * 100).toInt().toString(), // Centimes
         'currency': currency,
-        'paymentMethodTypes[]': 'card',
+        'payment_method_types[]': 'card', // Important : format URL-encoded
       };
-      debugPrint('Simulation du corps de requête : $body');
 
-      // Exemple d'appel :
-      // final response = await http.post(
-      //   Uri.parse('https://votre-projet.supabase.co/functions/v1/stripe-payment'),
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //     'Authorization': 'Bearer VOTRE_SUPABASE_ANON_KEY',
-      //   },
-      //   body: jsonEncode(body),
-      // );
-      // return jsonDecode(response.body);
+      final response = await http.post(
+        Uri.parse('https://api.stripe.com/v1/payment_intents'),
+        headers: {
+          'Authorization': 'Bearer $secretKey',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: body,
+      );
 
-      // Pour l'intégration client, nous créons un mock de réussite contenant les clés requises.
+      final responseData = jsonDecode(response.body);
+
+      if (response.statusCode != 200) {
+        debugPrint('Erreur Stripe API: ${responseData['error']['message']}');
+        return null;
+      }
+
       return {
-        'client_secret': 'pi_mock_secret_${DateTime.now().millisecondsSinceEpoch}',
-        'customer': 'cus_mock_12345',
-        'ephemeral_key': 'ek_mock_12345',
+        'client_secret': responseData['client_secret'],
+        'customer': '', // Mock ou création d'un customer Stripe réel
+        'ephemeral_key': '',
       };
     } catch (err) {
       debugPrint('Erreur lors de la création du PaymentIntent: $err');
