@@ -10,15 +10,31 @@ final categoriesProvider = FutureProvider<List<Category>>((ref) async {
 });
 
 // Fournisseur des produits filtrés par catégorie (famille)
-final productsProvider = FutureProvider.family<List<Product>, String?>((ref, categoryId) async {
+final productsProvider = FutureProvider.family<List<Product>, String?>((
+  ref,
+  categoryId,
+) async {
   final repository = ref.watch(catalogRepositoryProvider);
   // Si categoryId est vide ou 'Tous', on passe null
-  final id = (categoryId == null || categoryId.isEmpty || categoryId == 'Tous') ? null : categoryId;
+  final id = (categoryId == null || categoryId.isEmpty || categoryId == 'Tous')
+      ? null
+      : categoryId;
   return repository.getProducts(categoryId: id);
 });
 
+final productSearchProvider = FutureProvider.family<List<Product>, String>((
+  ref,
+  query,
+) async {
+  final repository = ref.watch(catalogRepositoryProvider);
+  return repository.searchProducts(query: query);
+});
+
 // Fournisseur des détails d'un produit spécifique
-final productDetailsProvider = FutureProvider.family<Product?, String>((ref, productId) async {
+final productDetailsProvider = FutureProvider.family<Product?, String>((
+  ref,
+  productId,
+) async {
   final repository = ref.watch(catalogRepositoryProvider);
   return repository.getProductDetails(productId);
 });

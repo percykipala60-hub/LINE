@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../data/auth_repository.dart';
 import '../../domain/models/app_user.dart';
 
@@ -10,6 +11,10 @@ class AuthStateNotifier extends AsyncNotifier<AppUser?> {
   @override
   FutureOr<AppUser?> build() async {
     _authRepository = ref.watch(authRepositoryProvider);
+
+    ref.onDispose(() {
+      _subscription?.cancel();
+    });
 
     // Écouter les changements d'état d'authentification de Supabase
     _subscription?.cancel();
@@ -33,10 +38,20 @@ class AuthStateNotifier extends AsyncNotifier<AppUser?> {
   }
 
   // Action pour se connecter
-  Future<void> signIn(String email, String password) async {
+  Future<AuthResponse> signIn(String email, String password) async {
     state = const AsyncValue.loading();
     try {
-      await _authRepository.signIn(email: email, password: password);
+      final res = await _authRepository.signIn(
+        email: email,
+        password: password,
+      );
+      if (res.session == null) {
+        state = const AsyncValue.data(null);
+      } else {
+        final user = await _authRepository.getProfile(res.session!.user.id);
+        state = AsyncValue.data(user);
+      }
+      return res;
     } catch (error, stackTrace) {
       state = AsyncValue.error(error, stackTrace);
       rethrow;
@@ -44,18 +59,25 @@ class AuthStateNotifier extends AsyncNotifier<AppUser?> {
   }
 
   // Action pour s'inscrire
-  Future<void> signUp({
+  Future<AuthResponse> signUp({
     required String email,
     required String password,
     required String fullName,
   }) async {
     state = const AsyncValue.loading();
     try {
-      await _authRepository.signUp(
+      final res = await _authRepository.signUp(
         email: email,
         password: password,
         fullName: fullName,
       );
+      if (res.session == null) {
+        state = const AsyncValue.data(null);
+      } else {
+        final user = await _authRepository.getProfile(res.session!.user.id);
+        state = AsyncValue.data(user);
+      }
+      return res;
     } catch (error, stackTrace) {
       state = AsyncValue.error(error, stackTrace);
       rethrow;
@@ -63,10 +85,26 @@ class AuthStateNotifier extends AsyncNotifier<AppUser?> {
   }
 
   // Vérification de l'OTP
-  Future<void> verifyOTP(String email, String token) async {
+  Future<AuthResponse> verifyOTP(
+    String email,
+    String token, {
+    OtpType type = OtpType.signup,
+  }) async {
     state = const AsyncValue.loading();
     try {
-      await _authRepository.verifyOTP(email: email, token: token);
+      final res = await _authRepository.verifyOTP(
+        email: email,
+        token: token,
+        type: type,
+      );
+      if (res.session == null) {
+        state = const AsyncValue.data(null);
+      } else {
+        state = AsyncValue.data(
+          await _authRepository.getProfile(res.session!.user.id),
+        );
+      }
+      return res;
     } catch (error, stackTrace) {
       state = AsyncValue.error(error, stackTrace);
       rethrow;
@@ -87,6 +125,8 @@ class AuthStateNotifier extends AsyncNotifier<AppUser?> {
 }
 
 // Fournisseur d'état d'authentification Riverpod
-final authStateProvider = AsyncNotifierProvider.autoDispose<AuthStateNotifier, AppUser?>(() {
-  return AuthStateNotifier();
-});
+final authStateProvider = AsyncNotifierProvider<AuthStateNotifier, AppUser?>(
+  () {
+    return AuthStateNotifier();
+  },
+);

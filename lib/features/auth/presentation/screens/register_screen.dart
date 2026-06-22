@@ -28,19 +28,35 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     setState(() => _isLoading = true);
     try {
-      await ref.read(authStateProvider.notifier).signUp(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-        fullName: _fullNameController.text.trim(),
-      );
-      if (mounted) {
+      final res = await ref
+          .read(authStateProvider.notifier)
+          .signUp(
+            email: _emailController.text.trim(),
+            password: _passwordController.text.trim(),
+            fullName: _fullNameController.text.trim(),
+          );
+
+      if (!mounted) return;
+
+      if (res.session == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Code à 6 chiffres envoyé par e-mail !')),
+          const SnackBar(
+            content: Text(
+              'Un code de confirmation a été envoyé par e-mail. Vérifiez votre boîte de réception.',
+            ),
+          ),
         );
         _showOtpDialog();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Inscription réussie, vous êtes connecté.'),
+          ),
+        );
+        context.go('/');
       }
     } catch (e) {
       if (mounted) {
@@ -69,11 +85,22 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         actions: [
           TextButton(
             onPressed: () async {
+              final enteredCode = otpController.text.trim();
+              if (enteredCode.isEmpty) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Veuillez entrer le code reçu par e-mail.'),
+                    ),
+                  );
+                }
+                return;
+              }
+
               try {
-                await ref.read(authStateProvider.notifier).verifyOTP(
-                      _emailController.text.trim(),
-                      otpController.text.trim(),
-                    );
+                await ref
+                    .read(authStateProvider.notifier)
+                    .verifyOTP(_emailController.text.trim(), enteredCode);
                 if (context.mounted) {
                   Navigator.pop(context); // Fermer le dialog
                   context.go('/'); // Aller à l'accueil
@@ -81,7 +108,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Code invalide : $e')),
+                    SnackBar(
+                      content: Text(
+                        'Code invalide ou erreur : ${e.toString()}',
+                      ),
+                    ),
                   );
                 }
               }
@@ -98,9 +129,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Inscription'),
-      ),
+      appBar: AppBar(title: const Text('Inscription')),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
@@ -124,7 +153,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     labelText: 'Nom complet',
                     border: OutlineInputBorder(),
                   ),
-                  validator: (val) => val == null || val.isEmpty ? 'Champ requis' : null,
+                  validator: (val) =>
+                      val == null || val.isEmpty ? 'Champ requis' : null,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
@@ -134,7 +164,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     border: OutlineInputBorder(),
                   ),
                   keyboardType: TextInputType.emailAddress,
-                  validator: (val) => val == null || !val.contains('@') ? 'E-mail invalide' : null,
+                  validator: (val) => val == null || !val.contains('@')
+                      ? 'E-mail invalide'
+                      : null,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
@@ -144,7 +176,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     border: OutlineInputBorder(),
                   ),
                   obscureText: true,
-                  validator: (val) => val == null || val.length < 6 ? 'Minimum 6 caractères' : null,
+                  validator: (val) => val == null || val.length < 6
+                      ? 'Minimum 6 caractères'
+                      : null,
                 ),
                 const SizedBox(height: 24),
                 _isLoading

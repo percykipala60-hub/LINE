@@ -19,7 +19,20 @@ class AuthRepository {
           .select()
           .eq('id', userId)
           .maybeSingle();
-      if (data == null) return null;
+
+      if (data == null) {
+        final currentUser = _supabase.auth.currentUser;
+        if (currentUser == null) return null;
+
+        return AppUser(
+          id: currentUser.id,
+          email: currentUser.email,
+          fullName: currentUser.userMetadata?['full_name'] as String?,
+          avatarUrl: null,
+          role: 'user',
+        );
+      }
+
       final sessionEmail = _supabase.auth.currentUser?.email;
       return AppUser.fromJson(data, email: sessionEmail);
     } catch (e) {
@@ -49,10 +62,7 @@ class AuthRepository {
     return await _supabase.auth.signUp(
       email: email,
       password: password,
-      data: {
-        'full_name': fullName,
-        'role': role,
-      },
+      data: {'full_name': fullName, 'role': role},
     );
   }
 
@@ -65,11 +75,12 @@ class AuthRepository {
   Future<AuthResponse> verifyOTP({
     required String email,
     required String token,
+    OtpType type = OtpType.signup,
   }) async {
     return await _supabase.auth.verifyOTP(
       email: email,
       token: token,
-      type: OtpType.signup,
+      type: type,
     );
   }
 

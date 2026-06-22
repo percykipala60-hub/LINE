@@ -6,6 +6,7 @@ import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/register_screen.dart';
 import '../../features/cart/presentation/screens/cart_screen.dart';
 import '../../features/catalog/presentation/screens/catalog_screen.dart';
+import '../../features/catalog/presentation/screens/search_screen.dart';
 import '../../features/catalog/presentation/screens/product_details_screen.dart';
 import '../../features/checkout/presentation/screens/checkout_screen.dart';
 import '../../features/main_layout/presentation/screens/main_layout_screen.dart';
@@ -34,12 +35,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-          // Branche 2 : Catégories (Optionnel, on lie au catalogue pour l'instant)
+          // Branche 2 : Recherche
           StatefulShellBranch(
             routes: [
               GoRoute(
                 path: '/categories',
-                builder: (context, state) => const CatalogScreen(),
+                builder: (context, state) => const SearchScreen(),
               ),
             ],
           ),
@@ -99,7 +100,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       if (isLoading) return null;
 
-      final isLoggingIn = state.matchedLocation == '/login' || state.matchedLocation == '/register';
+      final isLoggingIn =
+          state.matchedLocation == '/login' ||
+          state.matchedLocation == '/register';
       final isAccessingCheckout = state.matchedLocation == '/checkout';
 
       if (user == null && isAccessingCheckout) {

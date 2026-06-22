@@ -26,13 +26,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     setState(() => _isLoading = true);
     try {
-      await ref.read(authStateProvider.notifier).signIn(
-        _emailController.text.trim(),
-        _passwordController.text.trim(),
-      );
+      final res = await ref
+          .read(authStateProvider.notifier)
+          .signIn(
+            _emailController.text.trim(),
+            _passwordController.text.trim(),
+          );
+
+      // If no session returned, Supabase expects OTP verification (signup/confirm flow)
+      if (res.session == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Un code de confirmation a été envoyé. Vérifiez votre boîte e-mail.',
+              ),
+            ),
+          );
+        }
+        if (mounted) _showOtpDialog();
+        return;
+      }
+
       if (mounted) context.go('/');
     } catch (e) {
       if (mounted) {
@@ -45,14 +63,67 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  void _showOtpDialog() {
+    final otpController = TextEditingController();
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Entrez le code à 6 chiffres'),
+        content: TextField(
+          controller: otpController,
+          keyboardType: TextInputType.number,
+          maxLength: 6,
+          decoration: const InputDecoration(hintText: '123456'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              final enteredCode = otpController.text.trim();
+              if (enteredCode.isEmpty) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Veuillez entrer le code reçu par e-mail.'),
+                    ),
+                  );
+                }
+                return;
+              }
+
+              try {
+                await ref
+                    .read(authStateProvider.notifier)
+                    .verifyOTP(_emailController.text.trim(), enteredCode);
+                if (context.mounted) {
+                  Navigator.pop(context); // close dialog
+                  context.go('/');
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Code invalide ou erreur : ${e.toString()}',
+                      ),
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Vérifier'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Connexion'),
-      ),
+      appBar: AppBar(title: const Text('Connexion')),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
@@ -77,7 +148,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     border: OutlineInputBorder(),
                   ),
                   keyboardType: TextInputType.emailAddress,
-                  validator: (val) => val == null || !val.contains('@') ? 'E-mail invalide' : null,
+                  validator: (val) => val == null || !val.contains('@')
+                      ? 'E-mail invalide'
+                      : null,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
@@ -87,7 +160,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     border: OutlineInputBorder(),
                   ),
                   obscureText: true,
-                  validator: (val) => val == null || val.length < 6 ? 'Minimum 6 caractères' : null,
+                  validator: (val) => val == null || val.length < 6
+                      ? 'Minimum 6 caractères'
+                      : null,
                 ),
                 const SizedBox(height: 24),
                 _isLoading

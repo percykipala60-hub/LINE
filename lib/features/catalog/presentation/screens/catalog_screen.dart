@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:leen/features/auth/presentation/providers/auth_provider.dart';
-import 'package:leen/features/catalog/domain/models/category.dart';
 import 'package:leen/core/widgets/line_logo.dart';
 import '../providers/catalog_providers.dart';
 
@@ -14,7 +13,7 @@ class CatalogScreen extends ConsumerStatefulWidget {
 }
 
 class _CatalogScreenState extends ConsumerState<CatalogScreen> {
-  String _selectedCategoryId = 'Tous';
+  List? _randomizedProducts;
 
   @override
   Widget build(BuildContext context) {
@@ -22,9 +21,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
     final authState = ref.watch(authStateProvider);
     final user = authState.value;
 
-    // Charger les catégories et les produits
-    final categoriesAsync = ref.watch(categoriesProvider);
-    final productsAsync = ref.watch(productsProvider(_selectedCategoryId));
+    final productsAsync = ref.watch(productsProvider(null));
 
     return Scaffold(
       body: SafeArea(
@@ -63,16 +60,26 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
                           radius: 16,
                           backgroundColor: theme.colorScheme.primary,
                           child: Text(
-                            (user.fullName ?? 'U').substring(0, 1).toUpperCase(),
-                            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                            (user.fullName ?? 'U')
+                                .substring(0, 1)
+                                .toUpperCase(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                         onSelected: (value) async {
                           if (value == 'logout') {
-                            await ref.read(authStateProvider.notifier).signOut();
+                            await ref
+                                .read(authStateProvider.notifier)
+                                .signOut();
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Déconnecté avec succès')),
+                                const SnackBar(
+                                  content: Text('Déconnecté avec succès'),
+                                ),
                               );
                             }
                           }
@@ -82,7 +89,9 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
                             enabled: false,
                             child: Text(
                               user.fullName ?? 'Utilisateur',
-                              style: const TextStyle(fontWeight: FontWeight.bold),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                           const PopupMenuDivider(),
@@ -102,10 +111,13 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
               ],
             ),
 
-            // 2. Section de titre et barre de recherche
+            // 2. Section de titre
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24.0,
+                  vertical: 20.0,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -118,102 +130,25 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Découvrez nos pièces uniques et intemporelles.',
+                      'Explorez une sélection surprise de pièces sélectionnées pour vous.',
                       style: theme.textTheme.bodyMedium,
-                    ),
-                    const SizedBox(height: 24),
-                    // Barre de recherche
-                    Container(
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surface,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: theme.colorScheme.outline.withAlpha(128)),
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                      child: TextField(
-                        decoration: InputDecoration(
-                          hintText: 'Rechercher un vêtement, accessoire...',
-                          hintStyle: TextStyle(color: theme.colorScheme.onSurface.withAlpha(128)),
-                          border: InputBorder.none,
-                          icon: Icon(Icons.search, color: theme.colorScheme.primary),
-                        ),
-                      ),
                     ),
                   ],
                 ),
               ),
             ),
 
-            // 3. Sélecteur de catégories dynamique (Style Shein avec icônes circulaires)
-            categoriesAsync.when(
-              data: (categories) {
-                final allCategories = [
-                  Category(id: 'Tous', name: 'Tous', slug: 'tous'),
-                  ...categories,
-                ];
-
-                return SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                    child: Wrap(
-                      spacing: 16, // Espace horizontal
-                      runSpacing: 16, // Espace vertical
-                      alignment: WrapAlignment.start,
-                      children: allCategories.map((cat) {
-                        final isSelected = _selectedCategoryId == cat.id;
-                        return GestureDetector(
-                          onTap: () => setState(() => _selectedCategoryId = cat.id),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              CircleAvatar(
-                                radius: 32,
-                                backgroundColor: isSelected 
-                                    ? theme.colorScheme.primary.withAlpha(20) 
-                                    : Colors.grey[100],
-                                child: Icon(
-                                  Icons.category_outlined,
-                                  color: isSelected ? theme.colorScheme.primary : Colors.black87,
-                                  size: 28,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                cat.name,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                );
-              },
-              loading: () => const SliverToBoxAdapter(
-                child: SizedBox(height: 48, child: Center(child: CircularProgressIndicator())),
-              ),
-              error: (err, stack) => SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 24.0),
-                  child: Column(
-                    children: [
-                      Icon(Icons.category_outlined, size: 48, color: theme.colorScheme.primary.withAlpha(128)),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Vos catégories arrivent bientôt !',
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.bodyLarge,
-                      ),
-                      TextButton.icon(
-                        onPressed: () => ref.invalidate(categoriesProvider),
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Rafraîchir'),
-                      )
-                    ],
+            // 3. Sélection de produits Mise en avant
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24.0,
+                  vertical: 16.0,
+                ),
+                child: Text(
+                  'Découverte du moment',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
@@ -222,6 +157,13 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
             // 4. Grille de produits dynamique
             productsAsync.when(
               data: (products) {
+                final displayedProducts = () {
+                  if (_randomizedProducts == null ||
+                      _randomizedProducts!.length != products.length) {
+                    _randomizedProducts = List.of(products)..shuffle();
+                  }
+                  return _randomizedProducts as List;
+                }();
                 if (products.isEmpty) {
                   return const SliverFillRemaining(
                     hasScrollBody: false,
@@ -231,9 +173,16 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.inventory_2_outlined, size: 48, color: Colors.grey),
+                            Icon(
+                              Icons.inventory_2_outlined,
+                              size: 48,
+                              color: Colors.grey,
+                            ),
                             SizedBox(height: 16),
-                            Text('Aucun vêtement disponible dans cette catégorie.', textAlign: TextAlign.center),
+                            Text(
+                              'Aucun vêtement disponible dans cette catégorie.',
+                              textAlign: TextAlign.center,
+                            ),
                           ],
                         ),
                       ),
@@ -244,73 +193,81 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
                 return SliverPadding(
                   padding: const EdgeInsets.all(24.0),
                   sliver: SliverGrid(
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      childAspectRatio: 0.68,
-                      mainAxisSpacing: 16,
-                    ),
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final product = products[index];
-                        final hasImage = product.images.isNotEmpty;
-                        
-                        return GestureDetector(
-                          onTap: () => context.push('/catalog/${product.id}'),
-                          child: Card(
-                            clipBehavior: Clip.antiAlias,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                // Image
-                                Expanded(
-                                  child: hasImage
-                                      ? Image.network(
-                                          product.images.first,
-                                          fit: BoxFit.cover,
-                                          width: double.infinity,
-                                          errorBuilder: (context, error, stackTrace) => Container(
-                                            color: Colors.grey[200],
-                                            child: const Icon(Icons.broken_image, color: Colors.grey),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          childAspectRatio: 0.68,
+                          mainAxisSpacing: 16,
+                        ),
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      final product = displayedProducts[index];
+                      final hasImage = product.images.isNotEmpty;
+
+                      return GestureDetector(
+                        onTap: () => context.push('/catalog/${product.id}'),
+                        child: Card(
+                          clipBehavior: Clip.antiAlias,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // Image
+                              Expanded(
+                                child: hasImage
+                                    ? Image.network(
+                                        product.images.first,
+                                        fit: BoxFit.cover,
+                                        width: double.infinity,
+                                        errorBuilder:
+                                            (context, error, stackTrace) =>
+                                                Container(
+                                                  color: Colors.grey[200],
+                                                  child: const Icon(
+                                                    Icons.broken_image,
+                                                    color: Colors.grey,
+                                                  ),
+                                                ),
+                                      )
+                                    : Container(
+                                        color: Colors.grey[200],
+                                        child: const Icon(
+                                          Icons.image,
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                              ),
+                              // Infos
+                              Padding(
+                                padding: const EdgeInsets.all(12.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      product.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.textTheme.titleMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
                                           ),
-                                        )
-                                      : Container(
-                                          color: Colors.grey[200],
-                                          child: const Icon(Icons.image, color: Colors.grey),
-                                        ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '${product.price.toStringAsFixed(2)} €',
+                                      style: theme.textTheme.bodyLarge
+                                          ?.copyWith(
+                                            color: theme.colorScheme.tertiary,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                    ),
+                                  ],
                                 ),
-                                // Infos
-                                Padding(
-                                  padding: const EdgeInsets.all(12.0),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        product.name,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: theme.textTheme.titleMedium?.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        '${product.price.toStringAsFixed(2)} €',
-                                        style: theme.textTheme.bodyLarge?.copyWith(
-                                          color: theme.colorScheme.tertiary,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
-                        );
-                      },
-                      childCount: products.length,
-                    ),
+                        ),
+                      );
+                    }, childCount: products.length),
                   ),
                 );
               },
@@ -323,7 +280,11 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.shopping_bag_outlined, size: 64, color: theme.colorScheme.primary.withAlpha(128)),
+                      Icon(
+                        Icons.shopping_bag_outlined,
+                        size: 64,
+                        color: theme.colorScheme.primary.withAlpha(128),
+                      ),
                       const SizedBox(height: 16),
                       Text(
                         'Votre catalogue se refait une beauté,\nrevenez très vite !',
@@ -332,10 +293,10 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
                       ),
                       const SizedBox(height: 8),
                       TextButton.icon(
-                        onPressed: () => ref.invalidate(productsProvider(_selectedCategoryId)),
+                        onPressed: () => ref.invalidate(productsProvider(null)),
                         icon: const Icon(Icons.refresh),
                         label: const Text('Rafraîchir'),
-                      )
+                      ),
                     ],
                   ),
                 ),

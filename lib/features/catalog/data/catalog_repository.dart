@@ -11,10 +11,7 @@ class CatalogRepository {
 
   // Charger toutes les catégories
   Future<List<Category>> getCategories() async {
-    final response = await _supabase
-        .from('categories')
-        .select()
-        .order('name');
+    final response = await _supabase.from('categories').select().order('name');
     return (response as List).map((c) => Category.fromJson(c)).toList();
   }
 
@@ -25,6 +22,17 @@ class CatalogRepository {
       query = query.eq('category_id', categoryId);
     }
     final response = await query.order('created_at', ascending: false);
+    return (response as List).map((p) => Product.fromJson(p)).toList();
+  }
+
+  // Rechercher des produits par mot-clé
+  Future<List<Product>> searchProducts({required String query}) async {
+    final response = await _supabase
+        .from('products')
+        .select()
+        .ilike('name', '%$query%')
+        .eq('is_active', true)
+        .order('created_at', ascending: false);
     return (response as List).map((p) => Product.fromJson(p)).toList();
   }
 
