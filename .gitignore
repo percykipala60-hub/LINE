@@ -72,3 +72,4 @@ build/ios/
 
 # Exceptions - NE PAS ignorer build/web (nécessaire pour Render)
 !build/web/
+build/
