@@ -47,7 +47,8 @@ class AppThemeManager {
     required Color secondary,
     required Color accent,
   }) {
-    return ThemeData.light(useMaterial3: true).copyWith(
+    return ThemeData(
+      useMaterial3: true,
       scaffoldBackgroundColor: bg,
       primaryColor: primary,
       colorScheme: ColorScheme.light(
@@ -73,9 +74,10 @@ class AppThemeManager {
 
   // Simple dark theme fallback. For more nuance, create dark variants per style.
   static ThemeData getDarkTheme() {
-    return ThemeData.dark(
+    return ThemeData.dark().copyWith(
       useMaterial3: true,
-    ).copyWith(appBarTheme: const AppBarTheme(centerTitle: true));
+      appBarTheme: const AppBarTheme(centerTitle: true),
+    );
   }
 }
 

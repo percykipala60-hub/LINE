@@ -30,7 +30,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     });
 
     if (value.isNotEmpty) {
-      // Correction ici : On appelle simplement ref.invalidate ou ref.refresh sans le '_ ='
       ref.invalidate(productSearchProvider(value));
     }
   }

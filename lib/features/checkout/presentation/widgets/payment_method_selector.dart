@@ -77,8 +77,9 @@ class PaymentMethodSelector extends StatelessWidget {
                       prefixIcon: Icon(Icons.phone),
                     ),
                     validator: (val) {
-                      if (val == null || val.isEmpty)
+                      if (val == null || val.isEmpty) {
                         return 'Veuillez entrer votre numéro';
+                      }
                       if (val.length < 9) return 'Numéro invalide';
                       return null;
                     },
@@ -153,11 +154,12 @@ class PaymentMethodSelector extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(
-                isSelected ? Icons.check_circle : Icons.radio_button_off,
-                color: isSelected
-                    ? theme.colorScheme.primary
-                    : theme.iconTheme.color,
+              Radio<PaymentMethodType>(
+                value: value,
+                groupValue: selectedMethod,
+                onChanged: (val) {
+                  if (val != null) onChanged(val);
+                },
               ),
             ],
           ),

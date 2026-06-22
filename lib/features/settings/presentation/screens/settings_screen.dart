@@ -12,7 +12,7 @@ class SettingsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Paramètres d affichage'),
+        title: const Text('Paramètres d\'affichage'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
@@ -24,14 +24,14 @@ class SettingsScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Choisissez le mode d affichage',
+              'Choisissez le mode d\'affichage',
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             Text(
-              'Le mode sélectionné s appliquera immédiatement sur l application.',
+              'Le mode sélectionné s\'appliquera immédiatement sur l\'application.',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: 24),
@@ -65,7 +65,7 @@ class SettingsScreen extends ConsumerWidget {
                         .read(themeModeProvider.notifier)
                         .change(ThemeMode.system),
                     title: 'Système',
-                    description: 'Utilise le mode du système d exploitation.',
+                    description: 'Utilise le mode du système d\'exploitation.',
                   ),
                 ],
               ),
