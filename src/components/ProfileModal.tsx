@@ -9,7 +9,7 @@ import { Language } from '../translations';
 interface ProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
-  user: { displayName?: string | null; email?: string | null; photoURL?: string | null } | null;
+  user: { displayName?: string | null; email?: string | null; photoURL?: string | null; phoneNumber?: string | null } | null;
   isGuest: boolean;
   language: Language;
   onLanguageChange: (lang: Language) => void;
@@ -72,8 +72,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 {user?.displayName || (isGuest ? 'Visiteur' : 'Client')}
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                {user?.email || 'Mode découverte sans compte'}
+                {user?.phoneNumber ? `📱 ${user.phoneNumber}` : (user?.email || 'Mode découverte sans compte')}
               </p>
+              {user?.phoneNumber && user?.email && (
+                <p className="text-[11px] text-slate-400 truncate">
+                  ✉️ {user.email}
+                </p>
+              )}
               <div className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#25D366]/15 text-[#25D366] border border-[#25D366]/30">
                 <Sparkles className="w-3 h-3" />
                 <span>{user ? 'Compte connecté' : 'Visiteur'}</span>

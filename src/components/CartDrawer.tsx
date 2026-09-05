@@ -16,7 +16,7 @@ interface CartDrawerProps {
   onUpdateQuantity: (cartItemId: string, newQuantity: number) => void;
   onRemoveItem: (cartItemId: string) => void;
   onClearCart: () => void;
-  user?: { displayName?: string | null; email?: string | null } | null;
+  user?: { displayName?: string | null; email?: string | null; phoneNumber?: string | null } | null;
   onRequireAuth?: (reason: 'order') => void;
 }
 
@@ -36,13 +36,24 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
   // Customer order form inputs
   const [orderDetails, setOrderDetails] = useState<OrderDetails>({
-    customerName: '',
-    phone: '',
+    customerName: user?.displayName || '',
+    phone: (user as any)?.phoneNumber || '',
     deliveryCity: 'Kinshasa',
     deliveryAddress: '',
     preferredNetwork: 'whatsapp',
     notes: '',
   });
+
+  // Keep customerName and phone in sync if user logs in
+  React.useEffect(() => {
+    if (user) {
+      setOrderDetails((prev) => ({
+        ...prev,
+        customerName: prev.customerName || user.displayName || '',
+        phone: prev.phone || (user as any)?.phoneNumber || '',
+      }));
+    }
+  }, [user]);
 
   if (!isOpen) return null;
 

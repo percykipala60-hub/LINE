@@ -7,9 +7,10 @@ import {
 export interface AppUser {
   uid: string;
   displayName: string;
-  email: string;
+  email?: string;
+  phoneNumber?: string;
   photoURL?: string;
-  provider: 'google' | 'password' | 'guest';
+  provider: 'google' | 'password' | 'phone' | 'guest';
 }
 
 const STORAGE_SESSION_KEY = 'line_user_session';
@@ -233,6 +234,40 @@ export const authService = {
 
       throw new Error('Identifiants incorrects ou service temporairement indisponible.');
     }
+  },
+
+  // Phone Authentication (Instant and reliable for WhatsApp & Kinshasa numbers)
+  async signInWithPhone(phoneNumber: string, name?: string): Promise<AppUser> {
+    const cleanPhone = phoneNumber.trim().replace(/\s+/g, '');
+    if (!cleanPhone || cleanPhone.length < 8) {
+      throw new Error('Veuillez saisir un numéro de téléphone valide (ex: +243 81 234 5678).');
+    }
+    const displayName = name?.trim() || `Client (${cleanPhone.slice(-4)})`;
+    const user: AppUser = {
+      uid: `phone_${cleanPhone.replace(/[^0-9]/g, '')}`,
+      displayName,
+      phoneNumber: cleanPhone,
+      photoURL: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(displayName)}&backgroundColor=25D366`,
+      provider: 'phone',
+    };
+
+    // Save in accounts store
+    try {
+      const savedAccountsRaw = localStorage.getItem(STORAGE_USERS_KEY);
+      const accounts: Array<any> = savedAccountsRaw ? JSON.parse(savedAccountsRaw) : [];
+      const existingIndex = accounts.findIndex(a => a.phone === cleanPhone || a.user?.phoneNumber === cleanPhone);
+      if (existingIndex > -1) {
+        accounts[existingIndex].user = { ...accounts[existingIndex].user, displayName };
+      } else {
+        accounts.push({ phone: cleanPhone, user });
+      }
+      localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify(accounts));
+    } catch (e) {
+      /* ignore */
+    }
+
+    this.saveSession(user);
+    return user;
   },
 
   // Logout

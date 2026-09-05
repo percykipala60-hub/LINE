@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  X, Mail, Lock, User as UserIcon, 
-  ArrowRight, AlertCircle, Eye, EyeOff, Loader2, ShieldCheck, UserPlus 
+  X, Mail, Lock, User as UserIcon, Phone,
+  ArrowRight, AlertCircle, Eye, EyeOff, Loader2, ShieldCheck, UserPlus, CheckCircle2 
 } from 'lucide-react';
 import { authService, AppUser } from '../services/authService';
 
@@ -21,18 +21,29 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onContinueAsGuest,
   reason = 'general',
 }) => {
+  // Main method: 'phone' (default for WhatsApp commerce) or 'email'
+  const [authMethod, setAuthMethod] = useState<'phone' | 'email'>('phone');
+
+  // Phone Form State
+  const [phonePrefix, setPhonePrefix] = useState<string>('+243');
+  const [phoneNumber, setPhoneNumber] = useState<string>('');
+  const [phoneName, setPhoneName] = useState<string>('');
+
+  // Email Form State
   const [isSignUp, setIsSignUp] = useState<boolean>(false);
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [name, setName] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
+
+  // Common State
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [canQuickRegister, setCanQuickRegister] = useState<boolean>(false);
 
   if (!isOpen) return null;
 
-  // Google Sign-In attempt
+  // 1. Google Sign-In
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     setErrorMessage(null);
@@ -42,21 +53,37 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       onSuccess(user);
       onClose();
     } catch (err: any) {
-      if (err.code === 'GOOGLE_DOMAIN_RESTRICTED' || err.code === 'auth/unauthorized-domain') {
-        setErrorMessage(
-          "L'authentification Google via popup requiert l'autorisation du domaine 'localhost:3000' dans Google Cloud Console. Veuillez vous connecter avec votre adresse e-mail et mot de passe ci-dessous."
-        );
-      } else if (err.code === 'POPUP_CLOSED' || err.code === 'auth/popup-closed-by-user') {
-        // Closed by user, no error needed
+      if (err.code === 'POPUP_CLOSED' || err.code === 'auth/popup-closed-by-user') {
+        // User closed popup intentionally
+      } else if (err.code === 'GOOGLE_DOMAIN_RESTRICTED' || err.code === 'auth/unauthorized-domain') {
+        setErrorMessage("Le domaine actuel n'est pas encore activé dans Firebase pour Google. Vous pouvez utiliser votre numéro de téléphone ou votre e-mail ci-dessous.");
       } else {
-        setErrorMessage("Connexion Google non disponible actuellement. Veuillez utiliser l'adresse e-mail et mot de passe.");
+        setErrorMessage(err.message || "Connexion Google temporairement indisponible.");
       }
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Email / Password Form Submit
+  // 2. Phone Authentication
+  const handlePhoneAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setErrorMessage(null);
+
+    try {
+      const fullPhone = phoneNumber.startsWith('+') ? phoneNumber : `${phonePrefix}${phoneNumber}`;
+      const user = await authService.signInWithPhone(fullPhone, phoneName);
+      onSuccess(user);
+      onClose();
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Erreur lors de la connexion par téléphone.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 3. Email / Password Authentication
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -75,7 +102,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     } catch (err: any) {
       const msg: string = err.message || 'Erreur d\'authentification.';
       setErrorMessage(msg);
-      // If user tries to login with non-existing account, offer immediate switch to registration
       if (!isSignUp && (msg.includes('Aucun compte') || msg.includes('non trouvé'))) {
         setCanQuickRegister(true);
       }
@@ -98,7 +124,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 16 }}
           transition={{ duration: 0.2 }}
-          className="relative w-full max-w-md rounded-3xl bg-[#0F141E] border border-slate-800 text-white shadow-2xl p-6 sm:p-7 space-y-5 overflow-hidden"
+          className="relative w-full max-w-md rounded-3xl bg-[#0F141F] border border-slate-800 text-white shadow-2xl p-6 sm:p-7 space-y-5 overflow-hidden"
         >
           {/* Close button */}
           <button
@@ -116,47 +142,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <span>Line • Kinshasa</span>
             </div>
             <h3 className="text-2xl font-bold font-logo text-white tracking-tight">
-              {isSignUp ? 'Créer un compte' : 'Connexion'}
+              Espace Client
             </h3>
             <p className="text-xs text-slate-400 max-w-xs mx-auto leading-relaxed">
-              {reason === 'order' && 'Connectez-vous pour valider votre commande et planifier votre livraison en mains propres.'}
-              {reason === 'chat' && 'Connectez-vous pour échanger directement avec notre service commercial.'}
-              {(!reason || reason === 'general') && 'Accédez à votre compte, vos commandes et vos coordonnées.'}
+              {reason === 'order' && 'Connectez-vous pour valider votre panier et organiser la livraison en mains propres.'}
+              {reason === 'chat' && 'Connectez-vous pour échanger directement avec notre service commercial WhatsApp.'}
+              {(!reason || reason === 'general') && 'Accédez à votre compte, vos coups de cœur et vos coordonnées de livraison.'}
             </p>
-          </div>
-
-          {/* Segmented Tab Switcher (Connexion / Inscription) */}
-          <div className="grid grid-cols-2 p-1 rounded-2xl bg-slate-900 border border-slate-800 text-xs font-semibold">
-            <button
-              type="button"
-              onClick={() => {
-                setIsSignUp(false);
-                setErrorMessage(null);
-                setCanQuickRegister(false);
-              }}
-              className={`py-2 rounded-xl transition-all cursor-pointer ${
-                !isSignUp
-                  ? 'bg-white text-slate-900 shadow-sm font-bold'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Se connecter
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setIsSignUp(true);
-                setErrorMessage(null);
-                setCanQuickRegister(false);
-              }}
-              className={`py-2 rounded-xl transition-all cursor-pointer ${
-                isSignUp
-                  ? 'bg-white text-slate-900 shadow-sm font-bold'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Créer un compte
-            </button>
           </div>
 
           {/* Error Message Box */}
@@ -200,106 +192,232 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </button>
 
           {/* Clean Divider */}
-          <div className="flex items-center gap-3 text-[11px] text-slate-500 uppercase tracking-wider">
+          <div className="flex items-center gap-3 text-[10px] text-slate-500 uppercase tracking-wider">
             <div className="flex-1 h-px bg-slate-800" />
-            <span>ou avec mot de passe</span>
+            <span>ou choisissez votre méthode</span>
             <div className="flex-1 h-px bg-slate-800" />
           </div>
 
-          {/* Standard Email / Password Form */}
-          <form onSubmit={handleEmailAuth} className="space-y-3.5">
-            {isSignUp && (
+          {/* Segmented Switcher: [ Téléphone ] | [ E-mail ] */}
+          <div className="grid grid-cols-2 p-1 rounded-2xl bg-slate-900 border border-slate-800 text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMethod('phone');
+                setErrorMessage(null);
+              }}
+              className={`py-2 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                authMethod === 'phone'
+                  ? 'bg-white text-slate-900 shadow-sm font-bold'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Phone className="w-3.5 h-3.5 text-[#25D366]" />
+              <span>Numéro WhatsApp</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMethod('email');
+                setErrorMessage(null);
+              }}
+              className={`py-2 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                authMethod === 'email'
+                  ? 'bg-white text-slate-900 shadow-sm font-bold'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Mail className="w-3.5 h-3.5" />
+              <span>E-mail & Passe</span>
+            </button>
+          </div>
+
+          {/* METHOD 1: PHONE / WHATSAPP AUTHENTICATION */}
+          {authMethod === 'phone' && (
+            <form onSubmit={handlePhoneAuth} className="space-y-3.5">
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  Nom complet :
+                  Votre nom complet :
                 </label>
                 <div className="relative">
                   <UserIcon className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
                   <input
                     type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    value={phoneName}
+                    onChange={(e) => setPhoneName(e.target.value)}
                     placeholder="Ex : Sarah Mbayo"
                     className="w-full pl-10 pr-3 py-2.5 rounded-xl bg-slate-900 border border-slate-700/80 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-[#25D366] transition-colors"
-                    required={isSignUp}
                   />
                 </div>
               </div>
-            )}
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Adresse e-mail :
-              </label>
-              <div className="relative">
-                <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="votre.email@exemple.com"
-                  className="w-full pl-10 pr-3 py-2.5 rounded-xl bg-slate-900 border border-slate-700/80 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-[#25D366] transition-colors"
-                  required
-                />
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Numéro de téléphone WhatsApp :
+                </label>
+                <div className="flex gap-2">
+                  <select
+                    value={phonePrefix}
+                    onChange={(e) => setPhonePrefix(e.target.value)}
+                    className="px-2.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700/80 text-xs text-white focus:outline-none focus:border-[#25D366] font-mono shrink-0"
+                  >
+                    <option value="+243">🇨🇩 +243 (RDC)</option>
+                    <option value="+33">🇫🇷 +33 (France)</option>
+                    <option value="+32">🇧🇪 +32 (Belgique)</option>
+                    <option value="+1">🇺🇸 +1 (USA/Canada)</option>
+                    <option value="+44">🇬🇧 +44 (UK)</option>
+                    <option value="+27">🇿🇦 +27 (Afrique du Sud)</option>
+                    <option value="+242">🇨🇬 +242 (Congo-Brazza)</option>
+                  </select>
+                  <div className="relative flex-1">
+                    <Phone className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                    <input
+                      type="tel"
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      placeholder="81 234 5678"
+                      className="w-full pl-10 pr-3 py-2.5 rounded-xl bg-slate-900 border border-slate-700/80 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-[#25D366] transition-colors font-mono"
+                      required
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Mot de passe (minimum 6 caractères) :
-              </label>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-slate-900 border border-slate-700/80 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-[#25D366] transition-colors"
-                  required
-                />
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3 px-4 rounded-xl bg-[#25D366] hover:bg-[#20ba59] text-black font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-98 cursor-pointer disabled:opacity-50 shadow-sm"
+              >
+                {isLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-black" />
+                ) : (
+                  <>
+                    <span>Se connecter avec ce numéro</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+
+              <p className="text-[11px] text-slate-400 text-center leading-relaxed">
+                Idéal pour commander directement en mains propres sans mot de passe à retenir.
+              </p>
+            </form>
+          )}
+
+          {/* METHOD 2: EMAIL / PASSWORD AUTHENTICATION */}
+          {authMethod === 'email' && (
+            <div className="space-y-3.5">
+              {/* Inscription / Connexion sub-tabs */}
+              <div className="flex items-center justify-center gap-4 text-xs">
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-2.5 text-slate-400 hover:text-white cursor-pointer"
-                  aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                  onClick={() => {
+                    setIsSignUp(false);
+                    setErrorMessage(null);
+                  }}
+                  className={`pb-1 font-semibold transition-colors cursor-pointer ${
+                    !isSignUp
+                      ? 'text-white border-b-2 border-[#25D366]'
+                      : 'text-slate-500 hover:text-slate-300'
+                  }`}
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  Se connecter
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSignUp(true);
+                    setErrorMessage(null);
+                  }}
+                  className={`pb-1 font-semibold transition-colors cursor-pointer ${
+                    isSignUp
+                      ? 'text-white border-b-2 border-[#25D366]'
+                      : 'text-slate-500 hover:text-slate-300'
+                  }`}
+                >
+                  Créer un compte
                 </button>
               </div>
+
+              <form onSubmit={handleEmailAuth} className="space-y-3.5">
+                {isSignUp && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                      Nom complet :
+                    </label>
+                    <div className="relative">
+                      <UserIcon className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                      <input
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="Ex : Sarah Mbayo"
+                        className="w-full pl-10 pr-3 py-2.5 rounded-xl bg-slate-900 border border-slate-700/80 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-[#25D366] transition-colors"
+                        required={isSignUp}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    Adresse e-mail :
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="votre.email@exemple.com"
+                      className="w-full pl-10 pr-3 py-2.5 rounded-xl bg-slate-900 border border-slate-700/80 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-[#25D366] transition-colors"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    Mot de passe (minimum 6 caractères) :
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-slate-900 border border-slate-700/80 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-[#25D366] transition-colors"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-2.5 text-slate-400 hover:text-white cursor-pointer"
+                      aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full py-3 px-4 rounded-xl bg-[#25D366] hover:bg-[#20ba59] text-black font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-98 cursor-pointer disabled:opacity-50 shadow-sm"
+                >
+                  {isLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-black" />
+                  ) : (
+                    <>
+                      <span>{isSignUp ? 'Créer mon compte' : 'Se connecter'}</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </form>
             </div>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full py-3 px-4 rounded-xl bg-[#25D366] hover:bg-[#20ba59] text-black font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-98 cursor-pointer disabled:opacity-50 shadow-sm"
-            >
-              {isLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin text-black" />
-              ) : (
-                <>
-                  <span>{isSignUp ? 'Créer mon compte' : 'Se connecter'}</span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          </form>
-
-          {/* Toggle Inscription / Connexion Link */}
-          <div className="text-center text-xs text-slate-400">
-            {isSignUp ? 'Vous avez déjà un compte ?' : 'Vous n\'avez pas encore de compte ?'}{' '}
-            <button
-              type="button"
-              onClick={() => {
-                setIsSignUp(!isSignUp);
-                setErrorMessage(null);
-                setCanQuickRegister(false);
-              }}
-              className="text-[#25D366] font-bold hover:underline ml-1 cursor-pointer"
-            >
-              {isSignUp ? 'Se connecter' : 'Créer un compte'}
-            </button>
-          </div>
+          )}
 
           {/* Guest Mode Option */}
           <div className="pt-2 border-t border-slate-800/80 text-center space-y-1.5">
