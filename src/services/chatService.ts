@@ -1,7 +1,6 @@
 import { db } from '../firebase';
 import { 
-  collection, doc, setDoc, getDoc, getDocs, 
-  onSnapshot, updateDoc, arrayUnion 
+  collection, doc, setDoc, onSnapshot, updateDoc, arrayUnion 
 } from 'firebase/firestore';
 
 export interface ChatMessage {
@@ -17,7 +16,7 @@ export interface ChatMessage {
 }
 
 export interface ConversationSummary {
-  id: string; // user UID or phone
+  id: string; // user UID or guest ID
   userName: string;
   userContact: string;
   userPhoto?: string;
@@ -31,10 +30,100 @@ export interface ConversationSummary {
 
 const STORAGE_CONVERSATIONS_KEY = 'line_chat_conversations';
 const CHAT_CHANNEL_NAME = 'line_chat_realtime_channel';
+// Cloud Relay Endpoint for cross-origin sync between Render (https://line-rge0.onrender.com) and Admin (localhost:3001)
+const CLOUD_RELAY_URL = 'https://api.restful-api.dev/objects/ff808181a067127101a07374e8242228';
 
 const channel = typeof window !== 'undefined' && 'BroadcastChannel' in window
   ? new BroadcastChannel(CHAT_CHANNEL_NAME)
   : null;
+
+// Local in-memory active listeners
+type ConvListener = (messages: ChatMessage[], conversation?: ConversationSummary) => void;
+type AllListener = (conversations: ConversationSummary[]) => void;
+
+const inMemoryConvListeners = new Map<string, Set<ConvListener>>();
+const inMemoryAllListeners = new Set<AllListener>();
+
+// Helper to push conversation updates to Cloud Relay in background
+async function pushToCloudRelay(conversations: Record<string, ConversationSummary>) {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
+    await fetch(CLOUD_RELAY_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'line_store_chat_sync_v1',
+        data: {
+          updatedAt: Date.now(),
+          conversations,
+        }
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+  } catch (e) {
+    /* Silent background catch */
+  }
+}
+
+// Helper to fetch and merge cloud relay updates
+async function fetchAndMergeCloudRelay(): Promise<Record<string, ConversationSummary> | null> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+    const res = await fetch(CLOUD_RELAY_URL, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (!res.ok) return null;
+    const json = await res.json();
+    const cloudConvs: Record<string, ConversationSummary> = json?.data?.conversations;
+    if (!cloudConvs || typeof cloudConvs !== 'object') return null;
+
+    const raw = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_CONVERSATIONS_KEY) : null;
+    const localAll: Record<string, ConversationSummary> = raw ? JSON.parse(raw) : {};
+
+    let hasChanges = false;
+    const merged: Record<string, ConversationSummary> = { ...localAll };
+
+    for (const [id, cConv] of Object.entries(cloudConvs)) {
+      const lConv = merged[id];
+      if (!lConv) {
+        merged[id] = cConv;
+        hasChanges = true;
+      } else {
+        // Merge messages de-duplicating by ID
+        const msgMap = new Map<string, ChatMessage>();
+        (lConv.messages || []).forEach(m => msgMap.set(m.id, m));
+        (cConv.messages || []).forEach(m => msgMap.set(m.id, m));
+        const mergedMsgs = Array.from(msgMap.values()).sort((a, b) => a.timestamp - b.timestamp);
+
+        const isNewer = (cConv.updatedAt || 0) > (lConv.updatedAt || 0);
+        const hasMoreMsgs = mergedMsgs.length > (lConv.messages || []).length;
+
+        if (hasMoreMsgs || isNewer) {
+          merged[id] = {
+            ...lConv,
+            ...cConv,
+            messages: mergedMsgs,
+            lastMessage: mergedMsgs.length > 0 ? (mergedMsgs[mergedMsgs.length - 1].text || lConv.lastMessage) : lConv.lastMessage,
+            lastMessageTimestamp: mergedMsgs.length > 0 ? mergedMsgs[mergedMsgs.length - 1].timestamp : lConv.lastMessageTimestamp,
+            unreadByAdmin: cConv.unreadByAdmin ?? lConv.unreadByAdmin,
+            unreadByClient: cConv.unreadByClient ?? lConv.unreadByClient,
+          };
+          hasChanges = true;
+        }
+      }
+    }
+
+    if (hasChanges && typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_CONVERSATIONS_KEY, JSON.stringify(merged));
+    }
+
+    return hasChanges ? merged : null;
+  } catch (e) {
+    return null;
+  }
+}
 
 export const chatService = {
   // Get all conversations from local cache
@@ -59,7 +148,7 @@ export const chatService = {
     localStorage.setItem(STORAGE_CONVERSATIONS_KEY, JSON.stringify(all));
   },
 
-  // Send a message
+  // Send a message (Optimistic, non-blocking, multi-channel)
   async sendMessage(
     conversationId: string, 
     sender: 'client' | 'admin', 
@@ -114,7 +203,14 @@ export const chatService = {
       localStorage.setItem(STORAGE_CONVERSATIONS_KEY, JSON.stringify(all));
     }
 
-    // 2. Broadcast immediately to other tabs/ports
+    // 2. Immediate in-memory notification for current tab (<0ms)
+    const convListeners = inMemoryConvListeners.get(conversationId);
+    if (convListeners) {
+      convListeners.forEach(cb => cb(existing.messages, existing));
+    }
+    inMemoryAllListeners.forEach(cb => cb(Object.values(all)));
+
+    // 3. Broadcast to other tabs of same origin
     if (channel) {
       channel.postMessage({
         type: 'CHAT_MESSAGE_SENT',
@@ -122,11 +218,14 @@ export const chatService = {
       });
     }
 
-    // 3. Persist to Firestore if available
+    // 4. Background Sync to Cloud Relay (cross-domain Render <-> Admin)
+    pushToCloudRelay(all);
+
+    // 5. Background Sync to Firestore if available (non-blocking)
     if (db) {
       try {
         const convRef = doc(db, 'conversations', conversationId);
-        await setDoc(convRef, {
+        setDoc(convRef, {
           id: conversationId,
           userName: existing.userName,
           userContact: existing.userContact,
@@ -137,9 +236,9 @@ export const chatService = {
           unreadByClient: existing.unreadByClient,
           updatedAt: timestamp,
           messages: arrayUnion(newMsg)
-        }, { merge: true });
+        }, { merge: true }).catch(() => {});
       } catch (err) {
-        console.warn('Firestore Chat Sync Warning:', err);
+        /* silent catch */
       }
     }
 
@@ -151,7 +250,7 @@ export const chatService = {
     conversationId: string, 
     callback: (messages: ChatMessage[], conversation?: ConversationSummary) => void
   ) {
-    // 1. Initial local state
+    // 1. Initial state from local cache
     const all = this.getLocalConversations();
     const current = all[conversationId];
     if (current) {
@@ -160,7 +259,13 @@ export const chatService = {
       callback([], undefined);
     }
 
-    // 2. BroadcastChannel listener
+    // 2. Register in-memory listener for current tab
+    if (!inMemoryConvListeners.has(conversationId)) {
+      inMemoryConvListeners.set(conversationId, new Set());
+    }
+    inMemoryConvListeners.get(conversationId)!.add(callback);
+
+    // 3. BroadcastChannel listener
     const handleBroadcast = (event: MessageEvent) => {
       if (event.data?.type === 'CHAT_MESSAGE_SENT' && event.data?.payload?.conversationId === conversationId) {
         const payload = event.data.payload;
@@ -172,7 +277,7 @@ export const chatService = {
     };
     if (channel) channel.addEventListener('message', handleBroadcast);
 
-    // 3. Storage listener
+    // 4. Storage listener
     const handleStorage = (e: StorageEvent) => {
       if (e.key === STORAGE_CONVERSATIONS_KEY && e.newValue) {
         try {
@@ -184,7 +289,22 @@ export const chatService = {
     };
     window.addEventListener('storage', handleStorage);
 
-    // 4. Firestore real-time listener
+    // 5. Cloud Relay periodic polling for cross-origin sync
+    const pollInterval = setInterval(async () => {
+      const merged = await fetchAndMergeCloudRelay();
+      if (merged && merged[conversationId]) {
+        callback(merged[conversationId].messages || [], merged[conversationId]);
+      }
+    }, 2500);
+
+    // Initial cloud fetch
+    fetchAndMergeCloudRelay().then((merged) => {
+      if (merged && merged[conversationId]) {
+        callback(merged[conversationId].messages || [], merged[conversationId]);
+      }
+    });
+
+    // 6. Firestore real-time listener if available
     let unsubFirestore = () => {};
     if (db) {
       try {
@@ -199,8 +319,11 @@ export const chatService = {
     }
 
     return () => {
+      const set = inMemoryConvListeners.get(conversationId);
+      if (set) set.delete(callback);
       if (channel) channel.removeEventListener('message', handleBroadcast);
       window.removeEventListener('storage', handleStorage);
+      clearInterval(pollInterval);
       unsubFirestore();
     };
   },
@@ -220,9 +343,17 @@ export const chatService = {
       all[conversationId] = conv;
       localStorage.setItem(STORAGE_CONVERSATIONS_KEY, JSON.stringify(all));
 
+      // In-memory notify
+      const convListeners = inMemoryConvListeners.get(conversationId);
+      if (convListeners) {
+        convListeners.forEach(cb => cb(conv.messages, conv));
+      }
+
       if (channel) {
         channel.postMessage({ type: 'CONVERSATION_READ', payload: { conversationId, reader } });
       }
+
+      pushToCloudRelay(all);
 
       if (db) {
         try {

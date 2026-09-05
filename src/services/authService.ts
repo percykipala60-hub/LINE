@@ -156,11 +156,23 @@ export const authService = {
         provider: 'google',
       };
 
-      // Load user theme preference from Firestore if exists
-      const cloudTheme = await this.getUserTheme(user.uid);
-      if (cloudTheme) user.preferredTheme = cloudTheme;
+      // Load user theme preference from local cache immediately (instant non-blocking)
+      const localAccounts = this.getLocalAccounts();
+      const cachedAcc = localAccounts.find(a => a.uid === user.uid || (user.email && a.email === user.email));
+      if (cachedAcc?.preferredTheme) {
+        user.preferredTheme = cachedAcc.preferredTheme;
+      }
 
       this.saveSession(user);
+
+      // Non-blocking background sync if available
+      this.getUserTheme(user.uid).then(t => {
+        if (t && t !== user.preferredTheme) {
+          user.preferredTheme = t;
+          this.saveSession(user);
+        }
+      }).catch(() => {});
+
       return user;
     } catch (err: any) {
       if (err.code === 'auth/unauthorized-domain' || err.code === 'auth/configuration-not-found' || err.code === 'auth/operation-not-allowed') {
@@ -271,9 +283,10 @@ export const authService = {
       isPhoneVerified: true,
     };
 
-    // Restore cloud theme if available
-    const cloudTheme = await this.getUserTheme(appUser.uid);
-    if (cloudTheme) appUser.preferredTheme = cloudTheme;
+    // Use local theme preference immediately (instant non-blocking)
+    if (found.preferredTheme) {
+      appUser.preferredTheme = found.preferredTheme;
+    }
 
     this.saveSession(appUser);
     return appUser;
@@ -360,8 +373,12 @@ export const authService = {
         provider: 'password',
       };
 
-      const cloudTheme = await this.getUserTheme(user.uid);
-      if (cloudTheme) user.preferredTheme = cloudTheme;
+      // Use local theme preference immediately (instant non-blocking)
+      const accounts = this.getLocalAccounts();
+      const found = accounts.find(acc => acc.email === cleanEmail);
+      if (found?.preferredTheme) {
+        user.preferredTheme = found.preferredTheme;
+      }
 
       this.saveSession(user);
       return user;
@@ -510,11 +527,13 @@ export const authService = {
     const acc = accounts.find(a => a.uid === uid);
     if (acc?.preferredTheme) return acc.preferredTheme;
 
-    // Check Firestore
+    // Check Firestore with 1s timeout race so it never blocks or hangs
     if (db) {
       try {
-        const snap = await getDoc(doc(db, 'users', uid));
-        if (snap.exists()) {
+        const fetchPromise = getDoc(doc(db, 'users', uid));
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 1000));
+        const snap = await Promise.race([fetchPromise, timeoutPromise]) as any;
+        if (snap && snap.exists && snap.exists()) {
           const data = snap.data();
           if (data?.preferredTheme === 'dark' || data?.preferredTheme === 'light') {
             return data.preferredTheme;

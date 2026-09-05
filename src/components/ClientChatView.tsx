@@ -66,6 +66,8 @@ export const ClientChatView: React.FC<ClientChatViewProps> = ({
     return () => unsubscribe();
   }, [conversationId]);
 
+  const [isSending, setIsSending] = useState(false);
+
   // Scroll to bottom on updates
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -73,7 +75,8 @@ export const ClientChatView: React.FC<ClientChatViewProps> = ({
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputText.trim()) return;
+    const textToSend = inputText.trim();
+    if (!textToSend || isSending) return;
 
     // If user is not logged in and has not entered a name yet, prompt auth or quick name
     if (!user && !guestName.trim()) {
@@ -83,22 +86,48 @@ export const ClientChatView: React.FC<ClientChatViewProps> = ({
       }
     }
 
-    const textToSend = inputText.trim();
+    setIsSending(true);
     setInputText('');
 
     const senderName = user?.displayName || guestName.trim() || 'Client LINE';
     const senderContact = user?.phoneNumber || user?.email || guestPhone.trim() || '';
 
-    await chatService.sendMessage(
+    // 1. Instant Optimistic UI Update (<0ms)
+    const optimisticMsg: ChatMessage = {
+      id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       conversationId,
-      'client',
-      textToSend,
-      {
-        name: senderName,
-        contact: senderContact,
-        photo: user?.photoURL,
+      sender: 'client',
+      senderName,
+      senderContact,
+      text: textToSend,
+      timestamp: Date.now(),
+      read: false,
+    };
+
+    setMessages((prev) => {
+      if (prev.some(m => m.id === optimisticMsg.id || (m.text === optimisticMsg.text && Math.abs(m.timestamp - optimisticMsg.timestamp) < 500))) {
+        return prev;
       }
-    );
+      return [...prev, optimisticMsg];
+    });
+
+    // 2. Background Dispatch
+    try {
+      await chatService.sendMessage(
+        conversationId,
+        'client',
+        textToSend,
+        {
+          name: senderName,
+          contact: senderContact,
+          photo: user?.photoURL,
+        }
+      );
+    } catch (err) {
+      console.warn('Chat send background warning:', err);
+    } finally {
+      setTimeout(() => setIsSending(false), 200);
+    }
   };
 
   const handleSendQuick = async (quickText: string) => {
@@ -110,7 +139,26 @@ export const ClientChatView: React.FC<ClientChatViewProps> = ({
     const senderName = user?.displayName || guestName.trim() || 'Client LINE';
     const senderContact = user?.phoneNumber || user?.email || guestPhone.trim() || '';
 
-    await chatService.sendMessage(
+    // Instant Optimistic Update
+    const optimisticMsg: ChatMessage = {
+      id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      conversationId,
+      sender: 'client',
+      senderName,
+      senderContact,
+      text: quickText,
+      timestamp: Date.now(),
+      read: false,
+    };
+
+    setMessages((prev) => {
+      if (prev.some(m => m.id === optimisticMsg.id || (m.text === optimisticMsg.text && Math.abs(m.timestamp - optimisticMsg.timestamp) < 500))) {
+        return prev;
+      }
+      return [...prev, optimisticMsg];
+    });
+
+    chatService.sendMessage(
       conversationId,
       'client',
       quickText,
@@ -119,7 +167,7 @@ export const ClientChatView: React.FC<ClientChatViewProps> = ({
         contact: senderContact,
         photo: user?.photoURL,
       }
-    );
+    ).catch(() => {});
   };
 
   return (
@@ -271,7 +319,7 @@ export const ClientChatView: React.FC<ClientChatViewProps> = ({
         />
         <button
           type="submit"
-          disabled={!inputText.trim()}
+          disabled={!inputText.trim() || isSending}
           className="w-10 h-10 rounded-2xl bg-slate-900 dark:bg-emerald-600 text-white flex items-center justify-center disabled:opacity-40 hover:scale-105 active:scale-95 transition-all shrink-0 cursor-pointer shadow-sm"
         >
           <Send className="w-4 h-4" />

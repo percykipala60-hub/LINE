@@ -50,15 +50,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const fullPhone = phoneNumber.startsWith('+') ? phoneNumber : `${phonePrefix}${phoneNumber}`;
   const targetContact = authMethod === 'phone' ? fullPhone : email;
 
-  // 1. Google Sign-In (1-click direct)
+  // 1. Google Sign-In (1-click direct, fast <2s dismiss)
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     setErrorMessage(null);
+
+    // Safety timeout to prevent spinner from staying indefinitely
+    const safetyTimer = setTimeout(() => {
+      setIsLoading(false);
+    }, 2500);
+
     try {
       const user = await authService.signInWithGoogle();
+      clearTimeout(safetyTimer);
       onSuccess(user);
       onClose();
     } catch (err: any) {
+      clearTimeout(safetyTimer);
       if (err.code === 'POPUP_CLOSED' || err.code === 'auth/popup-closed-by-user') {
         // Closed intentionally
       } else if (err.code === 'GOOGLE_DOMAIN_RESTRICTED' || err.code === 'auth/unauthorized-domain') {

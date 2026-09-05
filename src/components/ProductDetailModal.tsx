@@ -83,30 +83,55 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
           {/* Scrollable Body */}
           <div className="overflow-y-auto no-scrollbar flex-1 pb-24">
-            {/* Gallery / Image Slider */}
-            <div className="relative aspect-[4/5] sm:aspect-[16/11] w-full bg-slate-100 dark:bg-slate-900">
-              <img
-                src={product.images[selectedImageIndex] || product.images[0]}
-                alt={product.name}
-                className="w-full h-full object-cover object-center"
-              />
+            {/* Gallery / Image or Video Player */}
+            <div className="relative aspect-[4/5] sm:aspect-[16/11] w-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center overflow-hidden">
+              {(() => {
+                const currentMedia = product.images[selectedImageIndex] || product.images[0] || '';
+                const isVideo = currentMedia.startsWith('data:video') || currentMedia.includes('.mp4') || currentMedia.includes('.webm') || currentMedia.includes('.mov');
+                if (isVideo) {
+                  return (
+                    <video
+                      src={currentMedia}
+                      controls
+                      playsInline
+                      className="w-full h-full object-contain bg-black"
+                    />
+                  );
+                }
+                return (
+                  <img
+                    src={currentMedia}
+                    alt={product.name}
+                    className="w-full h-full object-cover object-center"
+                  />
+                );
+              })()}
 
-              {/* Thumbnails if multiple images */}
+              {/* Thumbnails if multiple images/videos */}
               {product.images.length > 1 && (
-                <div className="absolute bottom-3 inset-x-0 flex items-center justify-center gap-2 z-10">
-                  {product.images.map((img, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => setSelectedImageIndex(idx)}
-                      className={`w-12 h-12 rounded-xl overflow-hidden border-2 transition-all shadow-md ${
-                        selectedImageIndex === idx
-                          ? 'border-white scale-105 ring-2 ring-emerald-500/50'
-                          : 'border-white/50 opacity-70 hover:opacity-100'
-                      }`}
-                    >
-                      <img src={img} alt="Aperçu" className="w-full h-full object-cover" />
-                    </button>
-                  ))}
+                <div className="absolute bottom-3 inset-x-0 flex items-center justify-center gap-2 z-10 overflow-x-auto px-4 py-1 no-scrollbar">
+                  {product.images.map((img, idx) => {
+                    const isVid = img.startsWith('data:video') || img.includes('.mp4') || img.includes('.webm') || img.includes('.mov');
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => setSelectedImageIndex(idx)}
+                        className={`w-12 h-12 rounded-xl overflow-hidden border-2 transition-all shadow-md shrink-0 relative bg-black ${
+                          selectedImageIndex === idx
+                            ? 'border-[#25D366] scale-105 ring-2 ring-emerald-500/50'
+                            : 'border-white/50 opacity-70 hover:opacity-100'
+                        }`}
+                      >
+                        {isVid ? (
+                          <div className="w-full h-full flex items-center justify-center bg-slate-900 text-[10px] text-white">
+                            <span>🎬</span>
+                          </div>
+                        ) : (
+                          <img src={img} alt="Aperçu" className="w-full h-full object-cover" />
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
