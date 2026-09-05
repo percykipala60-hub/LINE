@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { Language } from '../translations';
 import { AppUser, authService } from '../services/authService';
+import { getCurrencyMode, setCurrencyMode, CurrencyMode } from '../utils/currencyUtils';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -35,6 +36,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   const [selectedSection, setSelectedSection] = useState<SettingsSection | null>('appearance');
   const [searchQuery, setSearchQuery] = useState('');
+  const [currencyMode, setLocalCurrencyMode] = useState<CurrencyMode>(() => getCurrencyMode());
+
+  const handleSelectCurrency = (mode: CurrencyMode) => {
+    setCurrencyMode(mode);
+    setLocalCurrencyMode(mode);
+  };
 
   // Account linking state (Phone)
   const [linkPhone, setLinkPhone] = useState('');
@@ -499,6 +506,58 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             <span>🇬🇧 English</span>
                             {language === 'en' && <Check className="w-4 h-4 text-[#00A884]" />}
                           </button>
+                        </div>
+                      </div>
+
+                      {/* Currency Display Settings (Dollars & Francs Congolais) */}
+                      <div className="space-y-3 pt-3 border-t border-[#222E35]">
+                        <label className="block text-xs font-bold uppercase tracking-wider text-[#8696A0]">
+                          Devise d'affichage des prix (Kinshasa)
+                        </label>
+                        <div className="space-y-2">
+                          <button
+                            type="button"
+                            onClick={() => handleSelectCurrency('BOTH')}
+                            className={`w-full p-3 rounded-xl border flex items-center justify-between text-xs font-bold transition-all cursor-pointer ${
+                              currencyMode === 'BOTH'
+                                ? 'bg-[#202C33] border-[#00A884] text-[#00A884]'
+                                : 'bg-[#111B21] border-[#222E35] text-[#8696A0] hover:text-[#E9EDEF]'
+                            }`}
+                          >
+                            <div className="text-left">
+                              <div className="font-bold">Afficher les deux : $ USD & FC Francs (Recommandé)</div>
+                              <div className="text-[10px] text-[#8696A0]">Ex: 35 $ • ~98 000 FC (Taux Kinshasa : 1 $ = 2 800 FC)</div>
+                            </div>
+                            {currencyMode === 'BOTH' && <Check className="w-4 h-4 text-[#00A884]" />}
+                          </button>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleSelectCurrency('CDF')}
+                              className={`p-3 rounded-xl border flex items-center justify-between text-xs font-bold transition-all cursor-pointer ${
+                                currencyMode === 'CDF'
+                                  ? 'bg-[#202C33] border-[#00A884] text-[#00A884]'
+                                  : 'bg-[#111B21] border-[#222E35] text-[#8696A0] hover:text-[#E9EDEF]'
+                              }`}
+                            >
+                              <span>Franc Congolais (FC)</span>
+                              {currencyMode === 'CDF' && <Check className="w-4 h-4 text-[#00A884]" />}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleSelectCurrency('USD')}
+                              className={`p-3 rounded-xl border flex items-center justify-between text-xs font-bold transition-all cursor-pointer ${
+                                currencyMode === 'USD'
+                                  ? 'bg-[#202C33] border-[#00A884] text-[#00A884]'
+                                  : 'bg-[#111B21] border-[#222E35] text-[#8696A0] hover:text-[#E9EDEF]'
+                              }`}
+                            >
+                              <span>Dollars ($ USD)</span>
+                              {currencyMode === 'USD' && <Check className="w-4 h-4 text-[#00A884]" />}
+                            </button>
+                          </div>
                         </div>
                       </div>
 

@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { Heart, Plus, Sparkles } from 'lucide-react';
 import { Product } from '../types';
+import { formatDualPrice, getCurrencyMode } from '../utils/currencyUtils';
 
 interface ProductCardProps {
   product: Product;
@@ -23,6 +24,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const discount = product.originalPrice && product.originalPrice > product.price
     ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
     : null;
+
+  const priceInfo = formatDualPrice(product.price, product.currency);
+  const currencyMode = getCurrencyMode();
 
   return (
     <motion.div
@@ -115,18 +119,25 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         </div>
 
         {/* Price & Delivery indicator */}
-        <div className="flex items-baseline justify-between pt-1 border-t border-slate-100 dark:border-slate-800/60">
-          <div className="flex items-baseline gap-1.5">
-            <span className="text-base font-bold text-slate-900 dark:text-white">
-              {product.price} {product.currency}
-            </span>
-            {product.originalPrice && (
-              <span className="text-xs text-slate-400 line-through">
-                {product.originalPrice} {product.currency}
+        <div className="flex items-end justify-between pt-1 border-t border-slate-100 dark:border-slate-800/60">
+          <div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-base font-bold text-slate-900 dark:text-white">
+                {priceInfo.primary}
               </span>
+              {product.originalPrice && (
+                <span className="text-xs text-slate-400 line-through">
+                  {formatDualPrice(product.originalPrice, product.currency).primary}
+                </span>
+              )}
+            </div>
+            {currencyMode === 'BOTH' && (
+              <div className="text-[11px] font-semibold text-[#25D366]">
+                {priceInfo.secondaryLabel}
+              </div>
             )}
           </div>
-          <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+          <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 pb-0.5">
             En stock
           </span>
         </div>

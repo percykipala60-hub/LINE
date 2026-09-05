@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Check, ShoppingBag, ShieldCheck, Heart, Share2, Sparkles } from 'lucide-react';
 import { Product, ProductVariant } from '../types';
+import { formatDualPrice, getCurrencyMode } from '../utils/currencyUtils';
 
 interface ProductDetailModalProps {
   product: Product | null;
@@ -155,13 +156,18 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   {product.name}
                 </h1>
 
-                <div className="mt-2 flex items-baseline gap-3">
-                  <span className="text-2xl font-extrabold text-slate-900 dark:text-white">
-                    {product.price} {product.currency}
+                <div className="mt-2.5 flex items-baseline gap-3 flex-wrap">
+                  <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+                    {formatDualPrice(product.price, product.currency).primary}
                   </span>
+                  {getCurrencyMode() === 'BOTH' && (
+                    <span className="text-lg font-bold text-[#25D366] bg-[#25D366]/10 px-2.5 py-0.5 rounded-lg border border-[#25D366]/20">
+                      {formatDualPrice(product.price, product.currency).secondaryLabel}
+                    </span>
+                  )}
                   {product.originalPrice && (
                     <span className="text-base text-slate-400 line-through">
-                      {product.originalPrice} {product.currency}
+                      {formatDualPrice(product.originalPrice, product.currency).primary}
                     </span>
                   )}
                   <span className="ml-auto text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-full flex items-center gap-1">
@@ -169,6 +175,11 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                     Paiement à la livraison
                   </span>
                 </div>
+                {getCurrencyMode() === 'BOTH' && (
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Taux indicatif Kinshasa : 1 $ = 2 800 FC (Paiement possible en Dollars ou Francs Congolais)
+                  </p>
+                )}
               </div>
 
               {/* Description */}

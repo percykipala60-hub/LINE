@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { CartItem, OrderDetails, SellerContact } from '../types';
 import { createWhatsAppOrderUrl, getInstagramOrderAction, generateOrderSummaryText } from '../utils/orderMessaging';
+import { formatDualPrice, getCurrencyMode } from '../utils/currencyUtils';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -199,9 +200,16 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                               </button>
                             </div>
 
-                            <span className="font-bold text-sm text-slate-900 dark:text-white">
-                              {(item.product.price * item.quantity).toFixed(0)} {item.product.currency}
-                            </span>
+                            <div className="text-right">
+                              <span className="font-bold text-sm text-slate-900 dark:text-white block">
+                                {formatDualPrice(item.product.price * item.quantity, item.product.currency).primary}
+                              </span>
+                              {getCurrencyMode() === 'BOTH' && (
+                                <span className="text-[10px] text-[#25D366] font-semibold block">
+                                  {formatDualPrice(item.product.price * item.quantity, item.product.currency).secondaryLabel}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -397,11 +405,23 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
           {/* Footer Bottom Sheet Bar */}
           {items.length > 0 && step !== 'success' && (
             <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 bg-white/95 dark:bg-[#0E131F]/95 backdrop-blur-md">
-              <div className="flex items-center justify-between mb-3 text-sm">
-                <span className="text-slate-500 dark:text-slate-400">Total estimé :</span>
-                <span className="font-extrabold text-xl text-slate-900 dark:text-white">
-                  {totalAmount.toFixed(0)} {currency}
-                </span>
+              <div className="flex items-baseline justify-between mb-3 text-sm">
+                <div>
+                  <span className="text-slate-500 dark:text-slate-400 block text-xs">Total commande :</span>
+                  {getCurrencyMode() === 'BOTH' && (
+                    <span className="text-[10px] text-slate-400 block">Taux : 1 $ = 2 800 FC</span>
+                  )}
+                </div>
+                <div className="text-right">
+                  <span className="font-black text-xl text-slate-900 dark:text-white block">
+                    {formatDualPrice(totalAmount, currency).primary}
+                  </span>
+                  {getCurrencyMode() === 'BOTH' && (
+                    <span className="text-sm font-bold text-[#25D366] block">
+                      {formatDualPrice(totalAmount, currency).secondaryLabel}
+                    </span>
+                  )}
+                </div>
               </div>
 
               {step === 'cart' && (

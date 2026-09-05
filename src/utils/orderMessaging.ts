@@ -1,4 +1,5 @@
 import { Product, ProductVariant, CartItem, OrderDetails, SellerContact } from '../types';
+import { formatDualPrice } from './currencyUtils';
 
 /**
  * Builds clean, structured order text for direct message checkout
@@ -36,16 +37,20 @@ export function generateOrderSummaryText(
 
   text += `\n📦 *Articles commandés :*\n`;
   items.forEach((item, index) => {
+    const itemPriceDual = formatDualPrice(item.product.price, item.product.currency);
+    const itemSubtotalDual = formatDualPrice(item.product.price * item.quantity, item.product.currency);
     text += `${index + 1}. *${item.product.name}*\n`;
     text += `   - Quantité : x${item.quantity}\n`;
     text += `   - Taille : ${item.variant.size}\n`;
     text += `   - Couleur : ${item.variant.color}\n`;
-    text += `   - Prix unitaire : ${item.product.price} ${item.product.currency}\n`;
-    text += `   - Sous-total : ${(item.product.price * item.quantity).toFixed(0)} ${item.product.currency}\n`;
+    text += `   - Prix unitaire : ${itemPriceDual.combined}\n`;
+    text += `   - Sous-total : ${itemSubtotalDual.combined}\n`;
   });
 
-  text += `\n💰 *TOTAL COMMANDE : ${totalAmount.toFixed(0)} ${currency}*\n`;
-  text += `🚚 *Paiement à la livraison convenu*\n\n`;
+  const totalDual = formatDualPrice(totalAmount, currency);
+  text += `\n💰 *TOTAL COMMANDE : ${totalDual.combined}*\n`;
+  text += `💱 *Taux indicatif : 1 $ = 2 800 FC*\n`;
+  text += `🚚 *Paiement en mains propres (en Dollars ou en Francs)*\n\n`;
   text += `Bonjour ! J'aimerais finaliser cette commande et convenir du créneau de livraison avec vous. Merci ! ✨`;
 
   return text;

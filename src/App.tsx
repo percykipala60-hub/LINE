@@ -28,6 +28,7 @@ import { Product, ProductVariant, CartItem, StoryDrop, SellerContact } from './t
 import { syncService } from './utils/syncService';
 import { authService, AppUser } from './services/authService';
 import { userFavoritesService } from './services/userFavoritesService';
+import { getCurrencyMode, setCurrencyMode, CurrencyMode } from './utils/currencyUtils';
 
 export default function App() {
   // Mobile Splash Screen state
@@ -44,6 +45,23 @@ export default function App() {
   // Language state (French default, English supported)
   const [language, setLanguage] = useState<Language>('fr');
   const t = TRANSLATIONS[language];
+
+  // Currency display mode state ($ USD / FC Franc Congolais / Both)
+  const [currencyMode, setCurrencyModeState] = useState<CurrencyMode>(() => getCurrencyMode());
+
+  const handleToggleCurrency = () => {
+    const next: CurrencyMode = currencyMode === 'BOTH' ? 'CDF' : currencyMode === 'CDF' ? 'USD' : 'BOTH';
+    setCurrencyMode(next);
+    setCurrencyModeState(next);
+  };
+
+  useEffect(() => {
+    const handleCurrencyChanged = () => {
+      setCurrencyModeState(getCurrencyMode());
+    };
+    window.addEventListener('currency_changed', handleCurrencyChanged);
+    return () => window.removeEventListener('currency_changed', handleCurrencyChanged);
+  }, []);
 
   // Listen to Firebase auth changes
   useEffect(() => {
@@ -276,6 +294,15 @@ export default function App() {
 
           {/* Header Actions */}
           <div className="flex items-center gap-2">
+            {/* Quick Currency Toggle ($ / FC) */}
+            <button
+              onClick={handleToggleCurrency}
+              className="px-3 py-2 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center gap-1.5 text-xs font-black text-[#25D366] hover:scale-105 active:scale-95 transition-all shadow-xs cursor-pointer select-none"
+              title="Devise d'affichage des prix : Cliquez pour basculer ($ USD / FC Franc Congolais / Les deux)"
+            >
+              <span>{currencyMode === 'BOTH' ? '$ • FC' : currencyMode === 'CDF' ? 'FC (Francs)' : '$ (USD)'}</span>
+            </button>
+
             {/* Settings (Engrenage) Button */}
             <button
               onClick={() => setIsSettingsOpen(true)}
