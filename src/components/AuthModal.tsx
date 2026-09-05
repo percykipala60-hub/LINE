@@ -32,11 +32,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [otpCode, setOtpCode] = useState<string>('');
 
   // Form Fields
-  const [name, setName] = useState<string>('Percy');
+  const [name, setName] = useState<string>('');
   const [phonePrefix, setPhonePrefix] = useState<string>('+243');
-  const [phoneNumber, setPhoneNumber] = useState<string>('856426399');
+  const [phoneNumber, setPhoneNumber] = useState<string>('');
   const [email, setEmail] = useState<string>('');
-  const [password, setPassword] = useState<string>('123456');
+  const [password, setPassword] = useState<string>('');
   const [newPassword, setNewPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
 
@@ -341,9 +341,30 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold mb-1 text-slate-700 dark:text-slate-300 text-center">
-                    Code à 6 chiffres :
+                  <label className="block text-xs font-bold mb-2 text-slate-700 dark:text-slate-300 text-center">
+                    Code de confirmation à 6 chiffres :
                   </label>
+
+                  {/* 6 Visual digit slots with underscore */}
+                  <div className="flex justify-center items-center gap-2 sm:gap-3 my-3">
+                    {[0, 1, 2, 3, 4, 5].map((idx) => {
+                      const digit = otpCode[idx] || '';
+                      return (
+                        <div 
+                          key={idx}
+                          className={`w-11 h-14 rounded-xl border-2 flex flex-col items-center justify-center font-mono font-bold text-2xl transition-all ${
+                            digit
+                              ? 'border-[#25D366] bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
+                              : 'border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 text-slate-400'
+                          }`}
+                        >
+                          <span>{digit || ''}</span>
+                          {!digit && <span className="text-slate-400 dark:text-slate-600 text-lg leading-none -mt-1 font-bold">_</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+
                   <input
                     type="text"
                     inputMode="numeric"
@@ -351,14 +372,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     maxLength={6}
                     value={otpCode}
                     onChange={(e) => setOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
-                    placeholder="123456"
-                    className="w-full text-center py-3 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-2xl font-mono font-black tracking-widest text-slate-900 dark:text-white focus:outline-none focus:border-[#25D366] transition-colors"
+                    placeholder="______"
+                    className="w-full text-center py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-base font-mono tracking-widest text-slate-900 dark:text-white focus:outline-none focus:border-[#25D366] transition-colors"
                     required
                     autoFocus
                   />
-                  <p className="text-[10px] text-slate-400 text-center mt-1">
-                    Astuce : le code de test Firebase <strong>123456</strong> est également accepté.
-                  </p>
                 </div>
 
                 {/* If mode is forgot, also ask for new password */}

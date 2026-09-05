@@ -549,7 +549,6 @@ export default function App() {
         isGuest={isGuest}
         favoritesCount={favoriteIds.length}
         onOpenFavorites={() => setCurrentTab('favorites')}
-        onOpenSettings={() => setIsSettingsOpen(true)}
         onLoginRequest={() => {
           setAuthReason('general');
           setIsAuthModalOpen(true);

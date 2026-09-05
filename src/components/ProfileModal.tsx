@@ -15,7 +15,6 @@ interface ProfileModalProps {
   onOpenFavorites: () => void;
   onLoginRequest: () => void;
   onLogout: () => void;
-  onOpenSettings: () => void;
 }
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({
@@ -27,7 +26,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   onOpenFavorites,
   onLoginRequest,
   onLogout,
-  onOpenSettings,
 }) => {
   if (!isOpen) return null;
 
@@ -113,23 +111,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
               <span className="text-xs font-bold text-slate-400">
                 {favoritesCount} article(s)
-              </span>
-            </div>
-
-            {/* Settings shortcut */}
-            <div 
-              onClick={() => {
-                onClose();
-                onOpenSettings();
-              }}
-              className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-800 flex items-center justify-between cursor-pointer hover:border-slate-400 transition-colors"
-            >
-              <div className="flex items-center gap-2.5">
-                <SettingsIcon className="w-4 h-4 text-indigo-400" />
-                <span className="text-xs font-semibold">Paramètres (Thème, Langue, Sécurité)</span>
-              </div>
-              <span className="text-xs font-bold text-slate-400">
-                Ouvrir
               </span>
             </div>
           </div>

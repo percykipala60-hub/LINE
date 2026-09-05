@@ -8,7 +8,10 @@ import {
   createUserWithEmailAndPassword, 
   signOut, 
   onAuthStateChanged,
-  User 
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  sendPasswordResetEmail,
+  type ConfirmationResult
 } from 'firebase/auth';
 
 const firebaseConfig = {
@@ -32,6 +35,9 @@ export {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   signOut, 
-  onAuthStateChanged 
+  onAuthStateChanged,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  sendPasswordResetEmail
 };
-export type { User };
+export type { User, ConfirmationResult };
