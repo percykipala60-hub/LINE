@@ -11,6 +11,7 @@ import {
   RecaptchaVerifier,
   signInWithPhoneNumber,
   sendPasswordResetEmail,
+  type User,
   type ConfirmationResult
 } from 'firebase/auth';
 
