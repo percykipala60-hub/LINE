@@ -1,7 +1,7 @@
 services:
   - type: web
     name: linee-client-store
-    env: static
+    env: node
     buildCommand: npm install && npm run build
-    staticPublishPath: ./dist
+    startCommand: node server.js
     plan: free

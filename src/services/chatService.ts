@@ -30,8 +30,12 @@ export interface ConversationSummary {
 
 const STORAGE_CONVERSATIONS_KEY = 'line_chat_conversations';
 const CHAT_CHANNEL_NAME = 'line_chat_realtime_channel';
-// Cloud Relay Endpoint for cross-origin sync between Render (https://line-rge0.onrender.com) and Admin (localhost:3001)
-const CLOUD_RELAY_URL = 'https://api.restful-api.dev/objects/ff808181a067127101a07374e8242228';
+
+// Endpoints for unlimited real-time synchronization between Render client and local admin
+const SYNC_ENDPOINTS: string[] = [
+  'https://line-rge0.onrender.com/api/chat/sync',
+  'http://localhost:3000/api/chat/sync',
+];
 
 const channel = typeof window !== 'undefined' && 'BroadcastChannel' in window
   ? new BroadcastChannel(CHAT_CHANNEL_NAME)
@@ -44,85 +48,95 @@ type AllListener = (conversations: ConversationSummary[]) => void;
 const inMemoryConvListeners = new Map<string, Set<ConvListener>>();
 const inMemoryAllListeners = new Set<AllListener>();
 
-// Helper to push conversation updates to Cloud Relay in background
+// Helper to push conversation updates to server in background
 async function pushToCloudRelay(conversations: Record<string, ConversationSummary>) {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
-    await fetch(CLOUD_RELAY_URL, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: 'line_store_chat_sync_v1',
-        data: {
-          updatedAt: Date.now(),
-          conversations,
-        }
-      }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-  } catch (e) {
-    /* Silent background catch */
+  const currentOrigin = typeof window !== 'undefined' ? `${window.location.origin}/api/chat/sync` : null;
+  const targets = currentOrigin ? [currentOrigin, ...SYNC_ENDPOINTS] : SYNC_ENDPOINTS;
+
+  for (const url of targets) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversations }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      if (res.ok) return;
+    } catch (e) {
+      /* Try next endpoint */
+    }
   }
 }
 
-// Helper to fetch and merge cloud relay updates
+// Helper to fetch and merge server updates
 async function fetchAndMergeCloudRelay(): Promise<Record<string, ConversationSummary> | null> {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3500);
-    const res = await fetch(CLOUD_RELAY_URL, { signal: controller.signal });
-    clearTimeout(timeoutId);
-    if (!res.ok) return null;
-    const json = await res.json();
-    const cloudConvs: Record<string, ConversationSummary> = json?.data?.conversations;
-    if (!cloudConvs || typeof cloudConvs !== 'object') return null;
+  const currentOrigin = typeof window !== 'undefined' ? `${window.location.origin}/api/chat/conversations` : null;
+  const targets = currentOrigin 
+    ? [currentOrigin, ...SYNC_ENDPOINTS.map(u => u.replace('/sync', '/conversations'))]
+    : SYNC_ENDPOINTS.map(u => u.replace('/sync', '/conversations'));
 
-    const raw = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_CONVERSATIONS_KEY) : null;
-    const localAll: Record<string, ConversationSummary> = raw ? JSON.parse(raw) : {};
+  for (const url of targets) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (!res.ok) continue;
 
-    let hasChanges = false;
-    const merged: Record<string, ConversationSummary> = { ...localAll };
+      const json = await res.json();
+      const cloudConvs: Record<string, ConversationSummary> = json?.conversations;
+      if (!cloudConvs || typeof cloudConvs !== 'object') continue;
 
-    for (const [id, cConv] of Object.entries(cloudConvs)) {
-      const lConv = merged[id];
-      if (!lConv) {
-        merged[id] = cConv;
-        hasChanges = true;
-      } else {
-        // Merge messages de-duplicating by ID
-        const msgMap = new Map<string, ChatMessage>();
-        (lConv.messages || []).forEach(m => msgMap.set(m.id, m));
-        (cConv.messages || []).forEach(m => msgMap.set(m.id, m));
-        const mergedMsgs = Array.from(msgMap.values()).sort((a, b) => a.timestamp - b.timestamp);
+      const raw = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_CONVERSATIONS_KEY) : null;
+      const localAll: Record<string, ConversationSummary> = raw ? JSON.parse(raw) : {};
 
-        const isNewer = (cConv.updatedAt || 0) > (lConv.updatedAt || 0);
-        const hasMoreMsgs = mergedMsgs.length > (lConv.messages || []).length;
+      let hasChanges = false;
+      const merged: Record<string, ConversationSummary> = { ...localAll };
 
-        if (hasMoreMsgs || isNewer) {
-          merged[id] = {
-            ...lConv,
-            ...cConv,
-            messages: mergedMsgs,
-            lastMessage: mergedMsgs.length > 0 ? (mergedMsgs[mergedMsgs.length - 1].text || lConv.lastMessage) : lConv.lastMessage,
-            lastMessageTimestamp: mergedMsgs.length > 0 ? mergedMsgs[mergedMsgs.length - 1].timestamp : lConv.lastMessageTimestamp,
-            unreadByAdmin: cConv.unreadByAdmin ?? lConv.unreadByAdmin,
-            unreadByClient: cConv.unreadByClient ?? lConv.unreadByClient,
-          };
+      for (const [id, cConv] of Object.entries(cloudConvs)) {
+        const lConv = merged[id];
+        if (!lConv) {
+          merged[id] = cConv;
           hasChanges = true;
+        } else {
+          // Merge messages de-duplicating by ID
+          const msgMap = new Map<string, ChatMessage>();
+          (lConv.messages || []).forEach(m => msgMap.set(m.id, m));
+          (cConv.messages || []).forEach(m => msgMap.set(m.id, m));
+          const mergedMsgs = Array.from(msgMap.values()).sort((a, b) => a.timestamp - b.timestamp);
+
+          const isNewer = (cConv.updatedAt || 0) > (lConv.updatedAt || 0);
+          const hasMoreMsgs = mergedMsgs.length > (lConv.messages || []).length;
+
+          if (hasMoreMsgs || isNewer) {
+            merged[id] = {
+              ...lConv,
+              ...cConv,
+              messages: mergedMsgs,
+              lastMessage: mergedMsgs.length > 0 ? (mergedMsgs[mergedMsgs.length - 1].text || lConv.lastMessage) : lConv.lastMessage,
+              lastMessageTimestamp: mergedMsgs.length > 0 ? mergedMsgs[mergedMsgs.length - 1].timestamp : lConv.lastMessageTimestamp,
+              unreadByAdmin: cConv.unreadByAdmin ?? lConv.unreadByAdmin,
+              unreadByClient: cConv.unreadByClient ?? lConv.unreadByClient,
+            };
+            hasChanges = true;
+          }
         }
       }
-    }
 
-    if (hasChanges && typeof window !== 'undefined') {
-      localStorage.setItem(STORAGE_CONVERSATIONS_KEY, JSON.stringify(merged));
-    }
+      if (hasChanges && typeof window !== 'undefined') {
+        localStorage.setItem(STORAGE_CONVERSATIONS_KEY, JSON.stringify(merged));
+      }
 
-    return hasChanges ? merged : null;
-  } catch (e) {
-    return null;
+      return hasChanges ? merged : null;
+    } catch (e) {
+      /* Try next endpoint */
+    }
   }
+
+  return null;
 }
 
 export const chatService = {
@@ -218,7 +232,7 @@ export const chatService = {
       });
     }
 
-    // 4. Background Sync to Cloud Relay (cross-domain Render <-> Admin)
+    // 4. Background Sync to Server Relay (cross-domain Render <-> Admin)
     pushToCloudRelay(all);
 
     // 5. Background Sync to Firestore if available (non-blocking)
@@ -289,15 +303,15 @@ export const chatService = {
     };
     window.addEventListener('storage', handleStorage);
 
-    // 5. Cloud Relay periodic polling for cross-origin sync
+    // 5. Server Relay periodic polling for cross-origin sync
     const pollInterval = setInterval(async () => {
       const merged = await fetchAndMergeCloudRelay();
       if (merged && merged[conversationId]) {
         callback(merged[conversationId].messages || [], merged[conversationId]);
       }
-    }, 2500);
+    }, 2000);
 
-    // Initial cloud fetch
+    // Initial server fetch
     fetchAndMergeCloudRelay().then((merged) => {
       if (merged && merged[conversationId]) {
         callback(merged[conversationId].messages || [], merged[conversationId]);
