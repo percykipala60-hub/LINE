@@ -12,12 +12,13 @@ import {
 } from 'firebase/auth';
 
 const firebaseConfig = {
-  projectId: "ai-studio-applet-webapp-9d5ef",
-  appId: "1:825854459717:web:703c421de9fbaacd06482c",
-  apiKey: "AIzaSyCCYOkkunHK3ZHsTfPo4aCasUYGdaQPamE",
-  authDomain: "ai-studio-applet-webapp-9d5ef.firebaseapp.com",
-  storageBucket: "ai-studio-applet-webapp-9d5ef.firebasestorage.app",
-  messagingSenderId: "825854459717",
+  apiKey: "AIzaSyBPg2wWQvHb5c4yF-tjfcIfK-UKW1jdy_I",
+  authDomain: "line-store-c7053.firebaseapp.com",
+  projectId: "line-store-c7053",
+  storageBucket: "line-store-c7053.firebasestorage.app",
+  messagingSenderId: "714314118419",
+  appId: "1:714314118419:web:88be651d37a755a2b316e6",
+  measurementId: "G-L7ES5Q2ZCD"
 };
 
 export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
