@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Search, Moon, Sun, ShoppingBag, Filter, Sparkles, Heart, 
   ShieldCheck, FileText, Truck, ArrowRight, Layers, MessageCircle,
-  User as UserIcon, LogIn, Globe
+  User as UserIcon, LogIn, Globe, Settings as SettingsIcon
 } from 'lucide-react';
 import { LineLogo } from './components/LineLogo';
 import { StoriesBar } from './components/StoriesBar';
@@ -17,6 +17,7 @@ import { LegalTermsModal } from './components/LegalTermsModal';
 import { SplashScreen } from './components/SplashScreen';
 import { AuthModal } from './components/AuthModal';
 import { ProfileModal } from './components/ProfileModal';
+import { SettingsModal } from './components/SettingsModal';
 import { auth, onAuthStateChanged, signOut } from './firebase';
 import { TRANSLATIONS, Language } from './translations';
 import { 
@@ -38,6 +39,7 @@ export default function App() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [authReason, setAuthReason] = useState<'order' | 'chat' | 'general' | null>(null);
   const [isProfileOpen, setIsProfileOpen] = useState<boolean>(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
 
   // Language state (French default, English supported)
   const [language, setLanguage] = useState<Language>('fr');
@@ -75,14 +77,36 @@ export default function App() {
   const toggleTheme = () => {
     const nextMode = !isDarkMode;
     setIsDarkMode(nextMode);
+    const themeStr = nextMode ? 'dark' : 'light';
     if (nextMode) {
       document.documentElement.classList.add('dark');
-      localStorage.setItem('line_theme', 'dark');
     } else {
       document.documentElement.classList.remove('dark');
-      localStorage.setItem('line_theme', 'light');
+    }
+    localStorage.setItem('line_theme', themeStr);
+
+    if (user?.uid) {
+      authService.saveUserTheme(user.uid, themeStr);
     }
   };
+
+  // Restore user saved theme upon login
+  useEffect(() => {
+    if (user?.uid) {
+      authService.getUserTheme(user.uid).then((savedTheme) => {
+        if (savedTheme) {
+          const isDark = savedTheme === 'dark';
+          setIsDarkMode(isDark);
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+          localStorage.setItem('line_theme', savedTheme);
+        }
+      });
+    }
+  }, [user?.uid]);
 
   // WhatsApp Tab State
   const [currentTab, setCurrentTab] = useState<WhatsAppTab>('drops');
@@ -252,32 +276,14 @@ export default function App() {
 
           {/* Header Actions */}
           <div className="flex items-center gap-2">
-            {/* Legal / Confidentiality Modal button */}
+            {/* Settings (Engrenage) Button */}
             <button
-              onClick={() => setIsTermsOpen(true)}
-              className="px-3 py-1.5 rounded-full bg-slate-200/60 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-300/70 dark:hover:bg-slate-700 flex items-center gap-1.5 transition-colors shadow-xs"
-              title={t.termsBtn}
+              onClick={() => setIsSettingsOpen(true)}
+              className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 hover:scale-105 active:scale-95 transition-all shadow-xs cursor-pointer"
+              aria-label="Paramètres de l'application"
+              title="Paramètres (Thème, Langue, Sécurité, Confidentialité)"
             >
-              <FileText className="w-3.5 h-3.5 text-emerald-500" />
-              <span className="hidden sm:inline">Paiement à la livraison</span>
-            </button>
-
-            {/* Language Quick Toggle */}
-            <button
-              onClick={() => setLanguage(language === 'fr' ? 'en' : 'fr')}
-              className="px-2.5 py-1.5 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 hover:scale-105 transition-all shadow-xs"
-              title="Changer de langue / Switch language"
-            >
-              {language === 'fr' ? '🇫🇷 FR' : '🇬🇧 EN'}
-            </button>
-
-            {/* Dark/Light Mode Switcher */}
-            <button
-              onClick={toggleTheme}
-              className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 hover:scale-105 active:scale-95 transition-all shadow-xs"
-              aria-label="Basculer thème sombre / clair"
-            >
-              {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-700" />}
+              <SettingsIcon className="w-4 h-4 text-slate-600 dark:text-slate-300" />
             </button>
 
             {/* User Profile Button */}
@@ -535,18 +541,15 @@ export default function App() {
         }}
       />
 
-      {/* Profile & Settings Modal */}
+      {/* Profile Modal (Identity, Contact & Wishlist) */}
       <ProfileModal
         isOpen={isProfileOpen}
         onClose={() => setIsProfileOpen(false)}
         user={user}
         isGuest={isGuest}
-        language={language}
-        onLanguageChange={setLanguage}
-        isDarkMode={isDarkMode}
-        onToggleTheme={toggleTheme}
         favoritesCount={favoriteIds.length}
         onOpenFavorites={() => setCurrentTab('favorites')}
+        onOpenSettings={() => setIsSettingsOpen(true)}
         onLoginRequest={() => {
           setAuthReason('general');
           setIsAuthModalOpen(true);
@@ -556,6 +559,19 @@ export default function App() {
           setUser(null);
           setIsGuest(true);
         }}
+      />
+
+      {/* Settings Modal (Theme, Language, Account Security, Privacy) */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        isDarkMode={isDarkMode}
+        onToggleTheme={toggleTheme}
+        language={language}
+        onSelectLanguage={setLanguage}
+        user={user}
+        onUserUpdated={(updatedUser) => setUser(updatedUser)}
+        onOpenLegalTerms={() => setIsTermsOpen(true)}
       />
     </div>
   );
