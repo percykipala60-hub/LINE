@@ -1,7 +1,7 @@
 services:
-  - type: web_service
-    name: leen-client
-    env: docker
+  - type: web
+    name: linee-client-store
+    env: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
     plan: free
-    branch: main
-    dockerfilePath: Dockerfile
