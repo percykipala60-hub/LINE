@@ -1,7 +1,9 @@
 import { 
   auth, googleProvider, signInWithPopup, 
   signInWithEmailAndPassword, createUserWithEmailAndPassword, 
-  signOut as firebaseSignOut, onAuthStateChanged, User, db 
+  signOut as firebaseSignOut, onAuthStateChanged, fetchSignInMethodsForEmail, 
+  RecaptchaVerifier, signInWithPhoneNumber, PhoneAuthProvider,
+  type ConfirmationResult, type User, db 
 } from '../firebase';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 
@@ -22,6 +24,7 @@ export interface RegisteredAccount {
   email?: string;
   phone?: string;
   passwordHash: string;
+  hasGoogle?: boolean;
   preferredTheme?: 'dark' | 'light';
   createdAt: number;
 }
@@ -72,15 +75,96 @@ export const authService = {
     localStorage.setItem(STORAGE_ACCOUNTS_KEY, JSON.stringify(accounts));
   },
 
+  // --- REAL FIREBASE PHONE AUTH (SMS + RECAPTCHA) ---
+  setupRecaptcha(containerId: string = 'recaptcha-container'): RecaptchaVerifier {
+    if (typeof window === 'undefined') {
+      throw new Error('Environnement navigateur requis pour reCAPTCHA.');
+    }
+
+    if ((window as any).recaptchaVerifier) {
+      try {
+        (window as any).recaptchaVerifier.clear();
+      } catch (e) {}
+    }
+
+    let container = document.getElementById(containerId);
+    if (!container) {
+      container = document.createElement('div');
+      container.id = containerId;
+      document.body.appendChild(container);
+    }
+
+    auth.languageCode = 'fr';
+    const verifier = new RecaptchaVerifier(auth, containerId, {
+      size: 'invisible',
+      callback: () => {
+        // reCAPTCHA résolu automatiquement
+      },
+      'expired-callback': () => {
+        // reCAPTCHA expiré
+      }
+    });
+
+    (window as any).recaptchaVerifier = verifier;
+    return verifier;
+  },
+
+  async sendFirebasePhoneSms(phoneNumber: string, containerId: string = 'recaptcha-container'): Promise<ConfirmationResult> {
+    const cleanPhone = phoneNumber.trim().replace(/\s+/g, '');
+    let appVerifier = (window as any).recaptchaVerifier;
+    if (!appVerifier) {
+      appVerifier = this.setupRecaptcha(containerId);
+    }
+
+    try {
+      const confirmationResult = await signInWithPhoneNumber(auth, cleanPhone, appVerifier);
+      (window as any).activeConfirmationResult = confirmationResult;
+      return confirmationResult;
+    } catch (err: any) {
+      console.warn('Firebase signInWithPhoneNumber error:', err);
+      try {
+        if ((window as any).recaptchaVerifier) {
+          (window as any).recaptchaVerifier.clear();
+          (window as any).recaptchaVerifier = null;
+        }
+      } catch (e) {}
+      throw err;
+    }
+  },
+
+  async confirmPhoneSms(code: string, confirmationResult?: ConfirmationResult): Promise<User> {
+    const cr = confirmationResult || (window as any).activeConfirmationResult;
+    if (!cr) {
+      throw new Error('Aucune session de vérification SMS active.');
+    }
+    const result = await cr.confirm(code.trim());
+    return result.user;
+  },
+
   // --- 6-DIGIT OTP VERIFICATION SYSTEM ---
-  // Generates and stores a 6-digit code for a phone number or email
-  async sendOtpCode(contact: string): Promise<{ code: string; message: string }> {
+  // Generates and stores a 6-digit code for a phone number or email, using Firebase Phone Auth when applicable
+  async sendOtpCode(contact: string, containerId: string = 'recaptcha-container'): Promise<{ code: string; message: string }> {
     const clean = contact.trim().toLowerCase().replace(/\s+/g, '');
     if (!clean) {
       throw new Error('Veuillez renseigner un numéro ou une adresse e-mail.');
     }
 
-    // Generate 6-digit code
+    // 1. If it is a phone number, attempt real Firebase Phone Auth SMS with invisible reCAPTCHA
+    if (!clean.includes('@') && (clean.startsWith('+') || clean.length >= 8)) {
+      try {
+        const cr = await this.sendFirebasePhoneSms(clean, containerId);
+        (window as any).activeConfirmationResult = cr;
+        return {
+          code: '',
+          message: `Code SMS de validation Firebase transmis au ${clean}. (Code de test console : 123456).`
+        };
+      } catch (smsErr: any) {
+        console.warn('Firebase Phone SMS fallback:', smsErr.message || smsErr.code);
+        // Fallback to local OTP generator if quota exceeded or domain restriction
+      }
+    }
+
+    // 2. Generate 6-digit code (Email or local SMS fallback)
     const randomCode = Math.floor(100000 + Math.random() * 900000).toString();
     
     // Store in OTP memory
@@ -110,6 +194,16 @@ export const authService = {
 
     // The universal testing code configured in Firebase is always valid
     if (cleanCode === '123456') return true;
+
+    // Try real Firebase confirmation result if active
+    if ((window as any).activeConfirmationResult) {
+      try {
+        await (window as any).activeConfirmationResult.confirm(cleanCode);
+        return true;
+      } catch (e: any) {
+        console.warn('Firebase confirmationResult confirm error:', e.message);
+      }
+    }
 
     if (typeof window !== 'undefined') {
       const activeOtps = JSON.parse(localStorage.getItem(STORAGE_OTP_KEY) || '{}');
@@ -163,6 +257,32 @@ export const authService = {
         user.preferredTheme = cachedAcc.preferredTheme;
       }
 
+      // Save in registered accounts so this email is permanently recognized as Google-linked
+      if (user.email) {
+        const cleanEmail = user.email.toLowerCase();
+        const existingIdx = localAccounts.findIndex(a => 
+          (a.email && a.email.toLowerCase() === cleanEmail) || a.uid === user.uid
+        );
+        if (existingIdx >= 0) {
+          localAccounts[existingIdx] = {
+            ...localAccounts[existingIdx],
+            name: user.displayName,
+            email: cleanEmail,
+            hasGoogle: true,
+          };
+        } else {
+          localAccounts.push({
+            uid: user.uid,
+            name: user.displayName,
+            email: cleanEmail,
+            passwordHash: '',
+            hasGoogle: true,
+            createdAt: Date.now(),
+          });
+        }
+        this.saveLocalAccounts(localAccounts);
+      }
+
       this.saveSession(user);
 
       // Non-blocking background sync if available
@@ -187,6 +307,15 @@ export const authService = {
       }
       throw err;
     }
+  },
+
+  // Check if an email has already been used with Google
+  isEmailGoogleLinked(email: string): boolean {
+    if (!email) return false;
+    const clean = email.trim().toLowerCase();
+    const accounts = this.getLocalAccounts();
+    const found = accounts.find(a => a.email && a.email.toLowerCase() === clean);
+    return Boolean(found?.hasGoogle || (found?.uid && found.uid.startsWith('google_')));
   },
 
   // --- PHONE REGISTRATION WITH 6-DIGIT OTP & PASSWORD ---
@@ -314,7 +443,37 @@ export const authService = {
       await this.verifyOtpCode(cleanEmail, otpCode);
     }
 
-    // 1. Try Firebase Auth
+    // 1. Check if this email is already a Google-linked account in local accounts
+    const accounts = this.getLocalAccounts();
+    const existingAccIndex = accounts.findIndex(acc => acc.email && acc.email.toLowerCase() === cleanEmail);
+    const existingAcc = existingAccIndex >= 0 ? accounts[existingAccIndex] : null;
+
+    if (existingAcc?.hasGoogle) {
+      // The email already exists via Google. If OTP code was provided, attach the password to allow both login methods!
+      if (otpCode) {
+        accounts[existingAccIndex].passwordHash = password;
+        if (cleanName && accounts[existingAccIndex].name === cleanEmail.split('@')[0]) {
+          accounts[existingAccIndex].name = cleanName;
+        }
+        this.saveLocalAccounts(accounts);
+
+        const user: AppUser = {
+          uid: existingAcc.uid,
+          displayName: accounts[existingAccIndex].name,
+          email: cleanEmail,
+          photoURL: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(accounts[existingAccIndex].name)}&backgroundColor=25D366`,
+          provider: 'password',
+        };
+        this.saveSession(user);
+        return user;
+      } else {
+        const err = new Error('Cette adresse e-mail est déjà liée à votre compte Google. Vous pouvez soit vous connecter avec Google en 1 clic, soit renseigner le code à 6 chiffres pour lui ajouter un mot de passe.');
+        (err as any).code = 'ACCOUNT_EXISTS_WITH_GOOGLE';
+        throw err;
+      }
+    }
+
+    // 2. Try Firebase Auth
     try {
       const cred = await createUserWithEmailAndPassword(auth, cleanEmail, password);
       const user: AppUser = {
@@ -329,7 +488,50 @@ export const authService = {
     } catch (firebaseErr: any) {
       console.warn('Firebase Email Signup fallback:', firebaseErr.code);
 
-      const accounts = this.getLocalAccounts();
+      // If Firebase says email is in use, check if it's Google
+      if (firebaseErr.code === 'auth/email-already-in-use') {
+        let isGoogle = Boolean(existingAcc?.hasGoogle);
+        if (!isGoogle) {
+          try {
+            const methods = await fetchSignInMethodsForEmail(auth, cleanEmail);
+            if (methods && methods.includes('google.com')) isGoogle = true;
+          } catch (e) {}
+        }
+        if (isGoogle) {
+          if (otpCode) {
+            const uid = existingAcc?.uid || `google_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`;
+            const linkedAcc: RegisteredAccount = {
+              uid,
+              name: cleanName,
+              email: cleanEmail,
+              passwordHash: password,
+              hasGoogle: true,
+              createdAt: Date.now(),
+            };
+            if (existingAccIndex >= 0) {
+              accounts[existingAccIndex] = linkedAcc;
+            } else {
+              accounts.push(linkedAcc);
+            }
+            this.saveLocalAccounts(accounts);
+            const user: AppUser = {
+              uid,
+              displayName: cleanName,
+              email: cleanEmail,
+              photoURL: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanName)}&backgroundColor=25D366`,
+              provider: 'password',
+            };
+            this.saveSession(user);
+            return user;
+          } else {
+            const err = new Error('Cette adresse e-mail est déjà liée à votre compte Google. Connectez-vous avec Google ou renseignez le code à 6 chiffres pour lui ajouter un mot de passe.');
+            (err as any).code = 'ACCOUNT_EXISTS_WITH_GOOGLE';
+            throw err;
+          }
+        }
+        throw new Error('Cette adresse e-mail est déjà associée à un compte.');
+      }
+
       if (accounts.some(acc => acc.email === cleanEmail)) {
         throw new Error('Cette adresse e-mail est déjà associée à un compte.');
       }
@@ -363,6 +565,9 @@ export const authService = {
     if (!cleanEmail) throw new Error('Veuillez saisir votre adresse e-mail.');
     if (!password) throw new Error('Veuillez saisir votre mot de passe.');
 
+    const accounts = this.getLocalAccounts();
+    const found = accounts.find(acc => acc.email && acc.email.toLowerCase() === cleanEmail);
+
     try {
       const cred = await signInWithEmailAndPassword(auth, cleanEmail, password);
       const user: AppUser = {
@@ -374,8 +579,6 @@ export const authService = {
       };
 
       // Use local theme preference immediately (instant non-blocking)
-      const accounts = this.getLocalAccounts();
-      const found = accounts.find(acc => acc.email === cleanEmail);
       if (found?.preferredTheme) {
         user.preferredTheme = found.preferredTheme;
       }
@@ -383,10 +586,8 @@ export const authService = {
       this.saveSession(user);
       return user;
     } catch (firebaseErr: any) {
-      const accounts = this.getLocalAccounts();
-      const found = accounts.find(acc => acc.email === cleanEmail);
       if (found) {
-        if (found.passwordHash === password) {
+        if (found.passwordHash && found.passwordHash === password) {
           const user: AppUser = {
             uid: found.uid,
             displayName: found.name,
@@ -398,9 +599,30 @@ export const authService = {
           };
           this.saveSession(user);
           return user;
-        } else {
+        } else if (found.passwordHash && found.passwordHash !== password) {
           throw new Error('Mot de passe incorrect.');
+        } else if (found.hasGoogle && !found.passwordHash) {
+          const err = new Error('Ce compte a été créé avec Google et n\'a pas encore de mot de passe associé. Cliquez sur "Continuer avec Google" pour vous connecter, ou sur "Mot de passe oublié" pour en définir un.');
+          (err as any).code = 'ACCOUNT_EXISTS_WITH_GOOGLE';
+          throw err;
         }
+      }
+
+      // Check if Firebase indicates this email is registered with Google
+      let isGoogle = Boolean(found?.hasGoogle);
+      if (!isGoogle) {
+        try {
+          const methods = await fetchSignInMethodsForEmail(auth, cleanEmail);
+          if (methods && methods.includes('google.com')) {
+            isGoogle = true;
+          }
+        } catch (e) {}
+      }
+
+      if (isGoogle) {
+        const err = new Error('Cette adresse e-mail est liée à votre compte Google. Cliquez ci-dessous sur "Continuer avec Google" pour vous connecter en 1 clic, ou sur "Mot de passe oublié" pour définir un mot de passe.');
+        (err as any).code = 'ACCOUNT_EXISTS_WITH_GOOGLE';
+        throw err;
       }
 
       if (firebaseErr.code === 'auth/wrong-password' || firebaseErr.code === 'auth/invalid-credential') {
@@ -430,7 +652,20 @@ export const authService = {
     );
 
     if (accountIndex === -1) {
-      throw new Error('Aucun compte enregistré ne correspond à ces coordonnées.');
+      // Account wasn't in local storage yet (e.g. was only created with Google)
+      // Since OTP was verified on this contact, attach this new password to a registered account!
+      const newAcc: RegisteredAccount = {
+        uid: `usr_${Date.now()}`,
+        name: clean.split('@')[0],
+        email: clean.includes('@') ? clean : undefined,
+        phone: !clean.includes('@') ? clean : undefined,
+        passwordHash: newPassword,
+        hasGoogle: clean.includes('@'),
+        createdAt: Date.now(),
+      };
+      accounts.push(newAcc);
+      this.saveLocalAccounts(accounts);
+      return true;
     }
 
     accounts[accountIndex].passwordHash = newPassword;

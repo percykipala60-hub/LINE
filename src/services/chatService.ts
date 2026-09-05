@@ -48,8 +48,22 @@ type AllListener = (conversations: ConversationSummary[]) => void;
 const inMemoryConvListeners = new Map<string, Set<ConvListener>>();
 const inMemoryAllListeners = new Set<AllListener>();
 
-// Helper to push conversation updates to server in background
+import { supabaseClient } from './supabaseClient';
+
+// Helper to push conversation updates to server and Supabase in background
 async function pushToCloudRelay(conversations: Record<string, ConversationSummary>) {
+  // 1. Supabase Sync (if configured via SQL Editor / Settings)
+  if (supabaseClient.isConfigured()) {
+    for (const conv of Object.values(conversations)) {
+      supabaseClient.upsertConversation(conv).catch(() => {});
+      if (conv.messages && conv.messages.length > 0) {
+        const lastMsg = conv.messages[conv.messages.length - 1];
+        supabaseClient.insertMessage(lastMsg).catch(() => {});
+      }
+    }
+  }
+
+  // 2. HTTP Server Relay (Local Vite middleware / Render API)
   const currentOrigin = typeof window !== 'undefined' ? `${window.location.origin}/api/chat/sync` : null;
   const targets = currentOrigin ? [currentOrigin, ...SYNC_ENDPOINTS] : SYNC_ENDPOINTS;
 
@@ -71,8 +85,65 @@ async function pushToCloudRelay(conversations: Record<string, ConversationSummar
   }
 }
 
-// Helper to fetch and merge server updates
+// Helper to fetch and merge server and Supabase updates
 async function fetchAndMergeCloudRelay(): Promise<Record<string, ConversationSummary> | null> {
+  const raw = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_CONVERSATIONS_KEY) : null;
+  const localAll: Record<string, ConversationSummary> = raw ? JSON.parse(raw) : {};
+  let hasChanges = false;
+  const merged: Record<string, ConversationSummary> = { ...localAll };
+
+  // 1. Supabase Fetch (Instant cross-database synchronization)
+  if (supabaseClient.isConfigured()) {
+    try {
+      const [sbConvs, sbMsgs] = await Promise.all([
+        supabaseClient.fetchConversations(),
+        supabaseClient.fetchMessages(),
+      ]);
+      if (Array.isArray(sbConvs) && sbConvs.length > 0) {
+        for (const c of sbConvs) {
+          const convId = c.id;
+          const convMsgs: ChatMessage[] = (Array.isArray(sbMsgs) ? sbMsgs : [])
+            .filter((m: any) => m.conversation_id === convId)
+            .map((m: any) => ({
+              id: m.id,
+              conversationId: m.conversation_id,
+              sender: m.sender,
+              senderName: m.sender_name,
+              senderContact: m.sender_contact,
+              text: m.text || '',
+              imageUrl: m.image_url,
+              timestamp: Number(m.timestamp),
+              read: Boolean(m.read),
+            }))
+            .sort((a, b) => a.timestamp - b.timestamp);
+
+          const lConv = merged[convId];
+          const isNewer = Number(c.updated_at || 0) > Number(lConv?.updatedAt || 0);
+          const hasMoreMsgs = convMsgs.length > (lConv?.messages || []).length;
+
+          if (!lConv || isNewer || hasMoreMsgs) {
+            merged[convId] = {
+              id: convId,
+              userName: c.user_name || lConv?.userName || 'Client',
+              userContact: c.user_contact || lConv?.userContact || '',
+              userPhoto: c.user_photo || lConv?.userPhoto || '',
+              lastMessage: c.last_message || (convMsgs[convMsgs.length - 1]?.text ?? ''),
+              lastMessageTimestamp: Number(c.last_message_timestamp) || (convMsgs[convMsgs.length - 1]?.timestamp ?? Date.now()),
+              unreadByAdmin: c.unread_by_admin ?? 0,
+              unreadByClient: c.unread_by_client ?? 0,
+              updatedAt: Number(c.updated_at) || Date.now(),
+              messages: convMsgs.length > 0 ? convMsgs : (lConv?.messages || []),
+            };
+            hasChanges = true;
+          }
+        }
+      }
+    } catch (e) {
+      /* Continue to relay endpoints */
+    }
+  }
+
+  // 2. HTTP Server Relay (Local middleware / Render)
   const currentOrigin = typeof window !== 'undefined' ? `${window.location.origin}/api/chat/conversations` : null;
   const targets = currentOrigin 
     ? [currentOrigin, ...SYNC_ENDPOINTS.map(u => u.replace('/sync', '/conversations'))]
@@ -89,12 +160,6 @@ async function fetchAndMergeCloudRelay(): Promise<Record<string, ConversationSum
       const json = await res.json();
       const cloudConvs: Record<string, ConversationSummary> = json?.conversations;
       if (!cloudConvs || typeof cloudConvs !== 'object') continue;
-
-      const raw = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_CONVERSATIONS_KEY) : null;
-      const localAll: Record<string, ConversationSummary> = raw ? JSON.parse(raw) : {};
-
-      let hasChanges = false;
-      const merged: Record<string, ConversationSummary> = { ...localAll };
 
       for (const [id, cConv] of Object.entries(cloudConvs)) {
         const lConv = merged[id];
@@ -134,6 +199,11 @@ async function fetchAndMergeCloudRelay(): Promise<Record<string, ConversationSum
     } catch (e) {
       /* Try next endpoint */
     }
+  }
+
+  if (hasChanges && typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_CONVERSATIONS_KEY, JSON.stringify(merged));
+    return merged;
   }
 
   return null;
@@ -234,6 +304,12 @@ export const chatService = {
 
     // 4. Background Sync to Server Relay (cross-domain Render <-> Admin)
     pushToCloudRelay(all);
+
+    // 4b. Sync to Supabase directly
+    if (supabaseClient.isConfigured()) {
+      supabaseClient.upsertConversation(existing).catch(() => {});
+      supabaseClient.insertMessage(newMsg).catch(() => {});
+    }
 
     // 5. Background Sync to Firestore if available (non-blocking)
     if (db) {
@@ -368,6 +444,10 @@ export const chatService = {
       }
 
       pushToCloudRelay(all);
+
+      if (supabaseClient.isConfigured()) {
+        supabaseClient.markAsRead(conversationId, reader).catch(() => {});
+      }
 
       if (db) {
         try {

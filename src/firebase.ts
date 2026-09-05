@@ -3,6 +3,7 @@ import { getFirestore } from 'firebase/firestore';
 import { 
   getAuth, 
   GoogleAuthProvider, 
+  PhoneAuthProvider,
   signInWithPopup, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
@@ -11,6 +12,7 @@ import {
   RecaptchaVerifier,
   signInWithPhoneNumber,
   sendPasswordResetEmail,
+  fetchSignInMethodsForEmail,
   type User,
   type ConfirmationResult
 } from 'firebase/auth';
@@ -28,6 +30,8 @@ const firebaseConfig = {
 export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const auth = getAuth(app);
+auth.languageCode = 'fr';
+
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
@@ -39,6 +43,8 @@ export {
   onAuthStateChanged,
   RecaptchaVerifier,
   signInWithPhoneNumber,
-  sendPasswordResetEmail
+  PhoneAuthProvider,
+  sendPasswordResetEmail,
+  fetchSignInMethodsForEmail
 };
 export type { User, ConfirmationResult };
