@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: linee-client-store
+    name: line-client-store
     env: node
     buildCommand: npm install && npm run build
     startCommand: node server.js
