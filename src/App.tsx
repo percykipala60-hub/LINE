@@ -63,7 +63,46 @@ export default function App() {
     return () => window.removeEventListener('currency_changed', handleCurrencyChanged);
   }, []);
 
-  // Listen to Firebase auth changes
+  // Helper to extract clean personalized slug from URL pathname, search query or hash
+  const extractUrlSlug = (): string | null => {
+    if (typeof window === 'undefined') return null;
+    // Check search query (?user=percy or ?u=percy)
+    const params = new URLSearchParams(window.location.search);
+    const querySlug = params.get('user') || params.get('u');
+    if (querySlug) return querySlug.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+
+    // Check pathname (/percy or /u/percy)
+    const cleanPath = window.location.pathname.replace(/^\/+/, '').split('/')[0].trim().toLowerCase();
+    const systemPaths = ['index.html', 'api', 'assets', 'favicon.ico', 'manifest.json', 'robots.txt', 'sw.js'];
+    if (cleanPath && !systemPaths.includes(cleanPath)) {
+      return cleanPath.replace(/[^a-z0-9_-]/g, '');
+    }
+
+    // Check hash (#/percy)
+    if (window.location.hash) {
+      const cleanHash = window.location.hash.replace(/^#\/?/, '').split('/')[0].trim().toLowerCase();
+      if (cleanHash && !systemPaths.includes(cleanHash)) {
+        return cleanHash.replace(/[^a-z0-9_-]/g, '');
+      }
+    }
+
+    return null;
+  };
+
+  // Personalized URL slug detection on mount
+  useEffect(() => {
+    const slug = extractUrlSlug();
+    if (slug) {
+      localStorage.setItem('line_active_slug', slug);
+      const savedName = localStorage.getItem('line_guest_name');
+      if (!savedName || savedName === 'Client Visiteur' || savedName === 'Client') {
+        const formatted = slug.charAt(0).toUpperCase() + slug.slice(1);
+        localStorage.setItem('line_guest_name', formatted);
+      }
+    }
+  }, []);
+
+  // Listen to Firebase auth changes & update dynamic browser URL
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {
@@ -77,6 +116,18 @@ export default function App() {
         setUser(appUser);
         setIsGuest(false);
         authService.saveSession(appUser);
+
+        // Dynamically update URL to personalized slug: /percy
+        const rawName = appUser.displayName || appUser.email?.split('@')[0] || 'client';
+        const slug = rawName.toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 24);
+        if (slug && typeof window !== 'undefined') {
+          localStorage.setItem('line_user_slug', slug);
+          localStorage.setItem('line_active_slug', slug);
+          const targetPath = `/${slug}`;
+          if (window.location.pathname !== targetPath && (window.location.pathname === '/' || window.location.pathname === '')) {
+            window.history.pushState(null, '', targetPath);
+          }
+        }
       }
     });
     return () => unsubscribe();

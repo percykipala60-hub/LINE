@@ -112,6 +112,8 @@ export const ClientChatView: React.FC<ClientChatViewProps> = ({
     });
 
     // 2. Background Dispatch
+    const activeSlug = typeof window !== 'undefined' ? localStorage.getItem('line_active_slug') || localStorage.getItem('line_user_slug') || '' : '';
+    const clientLink = activeSlug ? `${window.location.origin}/${activeSlug}` : window.location.href;
     try {
       await chatService.sendMessage(
         conversationId,
@@ -121,6 +123,8 @@ export const ClientChatView: React.FC<ClientChatViewProps> = ({
           name: senderName,
           contact: senderContact,
           photo: user?.photoURL,
+          userSlug: activeSlug,
+          clientLink,
         }
       );
     } catch (err) {
@@ -158,6 +162,8 @@ export const ClientChatView: React.FC<ClientChatViewProps> = ({
       return [...prev, optimisticMsg];
     });
 
+    const qSlug = typeof window !== 'undefined' ? localStorage.getItem('line_active_slug') || localStorage.getItem('line_user_slug') || '' : '';
+    const qLink = qSlug ? `${window.location.origin}/${qSlug}` : window.location.href;
     chatService.sendMessage(
       conversationId,
       'client',
@@ -166,6 +172,8 @@ export const ClientChatView: React.FC<ClientChatViewProps> = ({
         name: senderName,
         contact: senderContact,
         photo: user?.photoURL,
+        userSlug: qSlug,
+        clientLink: qLink,
       }
     ).catch(() => {});
   };

@@ -50,27 +50,42 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const fullPhone = phoneNumber.startsWith('+') ? phoneNumber : `${phonePrefix}${phoneNumber}`;
   const targetContact = authMethod === 'phone' ? fullPhone : email;
 
-  // 1. Google Sign-In (1-click direct, fast <2s dismiss)
+  // 1. Google Sign-In
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     setErrorMessage(null);
 
-    // Safety timeout to prevent spinner from staying indefinitely
-    const safetyTimer = setTimeout(() => {
-      setIsLoading(false);
-    }, 2500);
+    const cleanEmail = email && email.includes('@') ? email.trim().toLowerCase() : '';
 
     try {
-      const user = await authService.signInWithGoogle();
-      clearTimeout(safetyTimer);
+      let user: AppUser;
+      try {
+        user = await authService.signInWithGoogle();
+      } catch (err: any) {
+        if (err.code === 'GOOGLE_DOMAIN_RESTRICTED' || err.code === 'auth/unauthorized-domain' || err.code === 'auth/configuration-not-found') {
+          const accounts = authService.getLocalAccounts();
+          const existingGoogle = accounts.find(a => a.hasGoogle && a.email);
+
+          if (cleanEmail) {
+            user = await authService.signInWithGoogle(cleanEmail);
+          } else if (existingGoogle?.email) {
+            user = await authService.signInWithGoogle(existingGoogle.email, existingGoogle.name);
+          } else {
+            throw err;
+          }
+        } else {
+          throw err;
+        }
+      }
+
       onSuccess(user);
       onClose();
     } catch (err: any) {
-      clearTimeout(safetyTimer);
       if (err.code === 'POPUP_CLOSED' || err.code === 'auth/popup-closed-by-user') {
         // Closed intentionally
       } else if (err.code === 'GOOGLE_DOMAIN_RESTRICTED' || err.code === 'auth/unauthorized-domain') {
-        setErrorMessage("Le domaine actuel n'est pas encore activé dans Firebase pour Google. Vous pouvez vous connecter avec votre numéro ou votre e-mail ci-dessous.");
+        setErrorMessage("Le domaine actuel n'est pas encore activé dans Firebase pour Google. Vous pouvez renseigner votre adresse e-mail ci-dessous pour continuer avec Google.");
+        setAuthMethod('email');
       } else {
         setErrorMessage(err.message || "Connexion Google temporairement indisponible.");
       }
@@ -278,7 +293,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       <path fill="#fff" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
                       <path fill="#fff" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
                     </svg>
-                    <span>Se connecter avec ce compte Google</span>
+                    <span>Continuer avec Google</span>
                   </button>
                 )}
               </div>
@@ -303,7 +318,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
                     </svg>
                   )}
-                  <span>Continuer en 1 clic avec Google</span>
+                  <span>Continuer avec Google</span>
                 </button>
 
                 <div className="flex items-center gap-3 text-[10px] text-slate-400 uppercase tracking-wider">
@@ -507,9 +522,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                             <button
                               type="button"
                               onClick={handleGoogleSignIn}
-                              className="px-2.5 py-1 rounded-lg bg-[#4285F4] text-white font-bold text-[10px] hover:bg-blue-600 cursor-pointer shrink-0"
+                              className="px-2.5 py-1 rounded-lg bg-[#4285F4] text-white font-bold text-[10px] hover:bg-blue-600 cursor-pointer shrink-0 flex items-center gap-1.5"
                             >
-                              Connexion 1-clic
+                              <span>Continuer avec Google</span>
                             </button>
                           </div>
                         )}
@@ -654,9 +669,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                               <button
                                 type="button"
                                 onClick={handleGoogleSignIn}
-                                className="px-2.5 py-1 rounded-lg bg-[#4285F4] text-white font-bold text-[10px] hover:bg-blue-600 cursor-pointer shrink-0"
+                                className="px-2.5 py-1 rounded-lg bg-[#4285F4] text-white font-bold text-[10px] hover:bg-blue-600 cursor-pointer shrink-0 flex items-center gap-1.5"
                               >
-                                Connexion 1-clic
+                                <span>Continuer avec Google</span>
                               </button>
                             </div>
                             <span className="text-[10px] opacity-85">Pour lui ajouter aussi un mot de passe, renseignez-le ci-dessous et validez avec le code.</span>

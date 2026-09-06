@@ -20,6 +20,8 @@ export interface ConversationSummary {
   userName: string;
   userContact: string;
   userPhoto?: string;
+  userSlug?: string;
+  clientLink?: string;
   lastMessage: string;
   lastMessageTimestamp: number;
   unreadByAdmin: number;
@@ -237,7 +239,7 @@ export const chatService = {
     conversationId: string, 
     sender: 'client' | 'admin', 
     text: string, 
-    senderInfo: { name: string; contact?: string; photo?: string },
+    senderInfo: { name: string; contact?: string; photo?: string; userSlug?: string; clientLink?: string },
     imageUrl?: string
   ): Promise<ChatMessage> {
     const timestamp = Date.now();
@@ -260,6 +262,8 @@ export const chatService = {
       userName: sender === 'client' ? senderInfo.name : 'Client',
       userContact: senderInfo.contact || '',
       userPhoto: senderInfo.photo,
+      userSlug: senderInfo.userSlug,
+      clientLink: senderInfo.clientLink,
       lastMessage: text || (imageUrl ? '📷 Photo partagée' : ''),
       lastMessageTimestamp: timestamp,
       unreadByAdmin: 0,
@@ -272,6 +276,8 @@ export const chatService = {
       existing.userName = senderInfo.name;
       if (senderInfo.contact) existing.userContact = senderInfo.contact;
       if (senderInfo.photo) existing.userPhoto = senderInfo.photo;
+      if (senderInfo.userSlug) existing.userSlug = senderInfo.userSlug;
+      if (senderInfo.clientLink) existing.clientLink = senderInfo.clientLink;
       existing.unreadByAdmin = (existing.unreadByAdmin || 0) + 1;
     } else {
       existing.unreadByClient = (existing.unreadByClient || 0) + 1;
@@ -320,6 +326,8 @@ export const chatService = {
           userName: existing.userName,
           userContact: existing.userContact,
           userPhoto: existing.userPhoto || '',
+          userSlug: existing.userSlug || '',
+          clientLink: existing.clientLink || '',
           lastMessage: existing.lastMessage,
           lastMessageTimestamp: timestamp,
           unreadByAdmin: existing.unreadByAdmin,

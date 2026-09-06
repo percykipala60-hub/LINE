@@ -467,7 +467,7 @@ export const authService = {
         this.saveSession(user);
         return user;
       } else {
-        const err = new Error('Cette adresse e-mail est déjà liée à votre compte Google. Vous pouvez soit vous connecter avec Google en 1 clic, soit renseigner le code à 6 chiffres pour lui ajouter un mot de passe.');
+        const err = new Error('Cette adresse e-mail est déjà liée à votre compte Google. Vous pouvez soit cliquer sur "Continuer avec Google", soit renseigner le code à 6 chiffres pour lui ajouter un mot de passe.');
         (err as any).code = 'ACCOUNT_EXISTS_WITH_GOOGLE';
         throw err;
       }
@@ -620,7 +620,7 @@ export const authService = {
       }
 
       if (isGoogle) {
-        const err = new Error('Cette adresse e-mail est liée à votre compte Google. Cliquez ci-dessous sur "Continuer avec Google" pour vous connecter en 1 clic, ou sur "Mot de passe oublié" pour définir un mot de passe.');
+        const err = new Error('Cette adresse e-mail est liée à votre compte Google. Cliquez ci-dessous sur "Continuer avec Google" pour vous connecter, ou sur "Mot de passe oublié" pour définir un mot de passe.');
         (err as any).code = 'ACCOUNT_EXISTS_WITH_GOOGLE';
         throw err;
       }
